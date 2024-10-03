@@ -132,12 +132,15 @@ export class AppConfig {
 
   @IsString()
   @IsNotEmpty()
-  @IsOptional()
-  mongodbUrl?: string;
+  databaseUrl: string;
 
   @IsString()
   @IsNotEmpty()
   redisUrl: string;
+
+  @IsString()
+  @IsNotEmpty()
+  grpcServerUrl: string;
 
   @IsString()
   @IsNotEmpty()

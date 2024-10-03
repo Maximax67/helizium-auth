@@ -1,14 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TokenService } from './token.service';
 import { RedisService } from '../redis/redis.service';
-import { getModelToken } from '@nestjs/mongoose';
-import { ApiToken } from './schemas';
+import { ApiToken } from './entities';
 import { nanoid } from 'nanoid';
 import * as jwt from 'jsonwebtoken';
 import { getKidMapping } from '../../common/helpers';
 import { TokenTypes, TokenLimits, TokenStatuses } from '../../common/enums';
-import { Model } from 'mongoose';
 import { config } from '../../config';
+
+// TODO FIX, switch to typeorm
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type Model<T> = any;
+const Model: any = {};
 
 jest.mock('axios');
 
@@ -39,7 +42,7 @@ describe('TokenService', () => {
           },
         },
         {
-          provide: getModelToken(ApiToken.name),
+          provide: '1234', // TODO FIX
           useValue: {
             create: jest.fn(),
             findOne: jest.fn(),
@@ -53,7 +56,7 @@ describe('TokenService', () => {
 
     service = module.get<TokenService>(TokenService);
     redisService = module.get<RedisService>(RedisService);
-    apiTokenModel = module.get<Model<ApiToken>>(getModelToken(ApiToken.name));
+    apiTokenModel = module.get<Model<ApiToken>>('123'); // TODO FIX
   });
 
   afterEach(() => {

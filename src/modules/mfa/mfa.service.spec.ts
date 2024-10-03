@@ -43,7 +43,7 @@ describe('MfaService', () => {
           useValue: {
             getUserMfaInfo: jest.fn(),
             changeMfaRequired: jest.fn(),
-            getUserById: jest.fn(),
+            getUserEmailAndUsername: jest.fn(),
             confirmEmailIfNotConfirmed: jest.fn(),
           },
         },
@@ -455,13 +455,13 @@ describe('MfaService', () => {
 
     it('should send an email code and set the cookie', async () => {
       const user = { email: 'test@example.com', username: 'testUser' };
-      userService.getUserById = jest.fn().mockResolvedValue(user);
+      userService.getUserEmailAndUsername = jest.fn().mockResolvedValue(user);
       emailOtpService.sendOtp = jest.fn().mockResolvedValue(otp);
       redisService.set = jest.fn().mockResolvedValue(undefined);
 
       await mfaService.sendEmailCode(mockReq, mockRes, userId, limits);
 
-      expect(userService.getUserById).toHaveBeenCalledWith(userId, {
+      expect(userService.getUserEmailAndUsername).toHaveBeenCalledWith(userId, {
         email: 1,
         username: 1,
       });
@@ -498,7 +498,7 @@ describe('MfaService', () => {
       emailOtpService.invalidateOtp = jest.fn().mockResolvedValue(undefined);
 
       const user = { email: 'test@example.com', username: 'testUser' };
-      userService.getUserById = jest.fn().mockResolvedValue(user);
+      userService.getUserEmailAndUsername = jest.fn().mockResolvedValue(user);
       emailOtpService.sendOtp = jest.fn().mockResolvedValue(otp);
       redisService.set = jest.fn().mockResolvedValue(undefined);
 
@@ -508,7 +508,7 @@ describe('MfaService', () => {
     });
 
     it('should throw an error if the user does not exist', async () => {
-      userService.getUserById = jest.fn().mockResolvedValue(null);
+      userService.getUserEmailAndUsername = jest.fn().mockResolvedValue(null);
 
       await expect(
         mfaService.sendEmailCode(mockReq, mockRes, userId, limits),

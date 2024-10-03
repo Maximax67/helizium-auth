@@ -1,5 +1,5 @@
 import { TokenInfo } from '../../../common/interfaces';
-import { TokenRedisStatuses } from 'src/common/enums/token-redis-statuses.enum';
+import { TokenRedisStatuses } from '../../../common/enums';
 
 export interface TokenInfoWithStatus {
   decoded: TokenInfo;

@@ -111,10 +111,7 @@ export class MfaService {
       }
     }
 
-    const user = await this.userService.getUserById(userId, {
-      email: 1,
-      username: 1,
-    });
+    const user = await this.userService.getUserEmailAndUsername(userId);
 
     if (!user) {
       throw new Error('User not exists');

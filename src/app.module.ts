@@ -1,22 +1,17 @@
-import { Module, ValidationPipe } from '@nestjs/common';
 import { APP_PIPE } from '@nestjs/core';
-import { MongooseModule } from '@nestjs/mongoose';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Module, ValidationPipe } from '@nestjs/common';
 
 import { TokensModule } from './modules/tokens';
 import { AuthModule } from './modules/auth';
 import { MfaModule } from './modules/mfa';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { getMongoUri } from './common/helpers';
+import { databaseConfig } from './config';
 
 @Module({
   imports: [
-    MongooseModule.forRootAsync({
-      useFactory: async () => {
-        const uri = await getMongoUri();
-        return { uri };
-      },
-    }),
+    TypeOrmModule.forRoot(databaseConfig),
     AuthModule,
     TokensModule,
     MfaModule,

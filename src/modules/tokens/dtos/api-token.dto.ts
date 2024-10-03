@@ -1,11 +1,7 @@
-import { Expose, Transform } from 'class-transformer';
+import { Expose } from 'class-transformer';
 
 export class ApiTokenDto {
   @Expose()
-  id: string;
-
-  @Expose()
-  @Transform(({ value }) => value?.substring(0, 6))
   jti: string;
 
   @Expose()
@@ -13,4 +9,7 @@ export class ApiTokenDto {
 
   @Expose()
   writeAccess: boolean;
+
+  @Expose()
+  createdAt: Date;
 }

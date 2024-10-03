@@ -13,7 +13,6 @@ import {
 import { SignInDto, SignUpDto } from '../../common/dtos';
 import { getJwks } from '../../common/helpers';
 import { VerifiedUser } from '../users/interfaces';
-import { ObjectId } from 'mongodb';
 
 jest.mock('../../common/helpers', () => ({
   getJwks: jest.fn(),
@@ -195,7 +194,7 @@ describe('AuthService', () => {
       };
       const res = {} as FastifyReply;
 
-      jest.spyOn(userService, 'createUser').mockResolvedValue(new ObjectId());
+      jest.spyOn(userService, 'createUser').mockResolvedValue('userId');
       jest.spyOn(tokenService, 'generateTokenPair').mockResolvedValue({
         accessToken: {
           token: 'access-token',
@@ -239,7 +238,7 @@ describe('AuthService', () => {
       const res = {} as FastifyReply;
 
       const mockVerifiedUser = {
-        userId: new ObjectId(),
+        userId: 'userId',
         limits: TokenLimits.DEFAULT,
         mfa: { required: true },
       };

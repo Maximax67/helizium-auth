@@ -32,7 +32,9 @@ export class TokensController {
   @Delete()
   @HttpCode(204)
   async revokeAllUserApiTokens(@CurrentToken() token: TokenInfo) {
-    await this.tokenService.revokeAllUserApiTokens(token.userId);
+    if (!(await this.tokenService.revokeAllUserApiTokens(token.userId))) {
+      throw new Error('User does not have any API tokens');
+    }
   }
 
   @Post()
@@ -51,20 +53,22 @@ export class TokensController {
   }
 
   @Serialize(ApiTokenDto)
-  @Get('/:tokenId')
+  @Get('/:jti')
   async getApiToken(
-    @Param('tokenId') tokenId: string,
+    @Param('jti') jti: string,
     @CurrentToken() token: TokenInfo,
   ) {
-    return this.tokenService.getUserApiToken(token.userId, tokenId);
+    return this.tokenService.getUserApiToken(token.userId, jti);
   }
 
-  @Delete('/:tokenId')
+  @Delete('/:jti')
   @HttpCode(204)
   async revokeApiToken(
-    @Param('tokenId') tokenId: string,
+    @Param('jti') jti: string,
     @CurrentToken() token: TokenInfo,
   ) {
-    await this.tokenService.revokeApiToken(token.userId, tokenId);
+    if (!(await this.tokenService.revokeApiToken(token.userId, jti))) {
+      throw new Error('Api token not found');
+    }
   }
 }

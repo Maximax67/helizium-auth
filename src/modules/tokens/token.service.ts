@@ -1,12 +1,12 @@
 import * as jwt from 'jsonwebtoken';
 import axios from 'axios';
 import { nanoid } from 'nanoid';
-import { Model } from 'mongoose';
 
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
-import { ApiToken, ApiTokenDocument } from './schemas';
+import { ApiToken } from './entities';
 import { RedisService } from '../redis';
 import { getKidMapping } from '../../common/helpers';
 import { TokenTypes, TokenLimits, TokenStatuses } from '../../common/enums';
@@ -26,8 +26,8 @@ export class TokenService {
   constructor(
     private readonly redisService: RedisService,
 
-    @InjectModel(ApiToken.name)
-    private readonly apiTokenModel: Model<ApiToken>,
+    @InjectRepository(ApiToken)
+    private readonly apiTokensRepository: Repository<ApiToken>,
   ) {}
 
   private getUserTokensKeyPattern(userId: string): string {
@@ -150,7 +150,18 @@ export class TokenService {
     title: string,
     writeAccess: boolean,
   ): Promise<string> {
-    const jti = nanoid();
+    const { raw } = await this.apiTokensRepository
+      .createQueryBuilder()
+      .insert()
+      .values({
+        userId: Buffer.from(userId, 'hex'),
+        title,
+        writeAccess,
+      })
+      .returning('jti')
+      .execute();
+
+    const jti = raw[0].jti;
     const type = TokenTypes.API;
     const kid = (await getKidMapping()).API;
     const limits = writeAccess ? TokenLimits.DEFAULT : TokenLimits.READ_ONLY;
@@ -159,13 +170,6 @@ export class TokenService {
     const token = jwt.sign(payload, config.keys.jwtApiPrivateKey, {
       algorithm: 'RS256',
       keyid: kid,
-    });
-
-    await this.apiTokenModel.create({
-      userId,
-      jti,
-      title,
-      writeAccess,
     });
 
     return token;
@@ -204,10 +208,10 @@ export class TokenService {
           }
         } else {
           const limits = decoded.limits;
-          const searchResult = await this.apiTokenModel.findOne(
-            { userId, jti },
-            { writeAccess: 1 },
-          );
+          const searchResult = await this.apiTokensRepository.findOne({
+            where: { userId: Buffer.from(userId, 'hex'), jti },
+            select: ['writeAccess'],
+          });
 
           if (
             !searchResult ||
@@ -223,7 +227,7 @@ export class TokenService {
           status,
         };
       }
-    } catch (e) {}
+    } catch (_e) {}
 
     return null;
   }
@@ -255,35 +259,30 @@ export class TokenService {
           };
         }
       }
-    } catch (e) {}
+    } catch (_e) {}
 
     return null;
   }
 
   async getUserApiTokens(userId: string): Promise<ApiTokenDto[]> {
-    const tokens: ApiTokenDto[] = await this.apiTokenModel
-      .find({ userId })
-      .lean();
-
-    return tokens.map((token) => {
-      token.id = (token as ApiTokenDocument)._id.toString();
-      return token;
+    const tokens: ApiTokenDto[] = await this.apiTokensRepository.findBy({
+      userId: Buffer.from(userId, 'hex'),
     });
+
+    return tokens;
   }
 
   async getUserApiToken(
     userId: string,
-    tokenId: string,
+    jti: string,
   ): Promise<ApiTokenDto | null> {
-    const token: ApiTokenDto | null = await this.apiTokenModel
-      .findOne({ _id: tokenId, userId })
-      .lean();
+    const token: ApiTokenDto | null = await this.apiTokensRepository.findOne({
+      where: { jti, userId: Buffer.from(userId, 'hex') },
+    });
 
     if (!token) {
       throw new Error('Not found api token');
     }
-
-    token.id = (token as ApiTokenDocument)._id.toString();
 
     return token;
   }
@@ -341,50 +340,35 @@ export class TokenService {
     await this.revokeForApiGateway(jti);
   }
 
-  async revokeApiToken(userId: string, tokenId: string): Promise<boolean> {
-    const deletedToken = await this.apiTokenModel.findOneAndDelete({
-      _id: tokenId,
-      userId,
+  async revokeApiToken(userId: string, jti: string): Promise<boolean> {
+    const result = await this.apiTokensRepository.delete({
+      userId: Buffer.from(userId, 'hex'),
+      jti,
     });
 
-    if (!deletedToken) {
+    if (result.affected === 0) {
       return false;
     }
 
-    await this.revokeForApiGateway(deletedToken.jti);
+    await this.revokeForApiGateway(jti);
 
     return true;
   }
 
   async revokeAllUserApiTokens(userId: string): Promise<boolean> {
-    let jtis: string[];
+    const result = await this.apiTokensRepository
+      .createQueryBuilder()
+      .delete()
+      .where('"userId" = :userId', { userId: Buffer.from(userId, 'hex') })
+      .returning('jti')
+      .useTransaction(true)
+      .execute();
 
-    const session = await this.apiTokenModel.startSession();
-    session.startTransaction();
-
-    try {
-      const userApiTokens = await this.apiTokenModel
-        .find({ userId })
-        .session(session);
-
-      if (!userApiTokens.length) {
-        await session.commitTransaction();
-        session.endSession();
-        return false;
-      }
-
-      await this.apiTokenModel.deleteMany({ userId }).session(session);
-
-      await session.commitTransaction();
-      session.endSession();
-
-      jtis = userApiTokens.map((token) => token.jti);
-    } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
-
-      throw error;
+    if (result.raw.length === 0) {
+      return false;
     }
+
+    const jtis = result.raw.map((token: Partial<ApiToken>) => token.jti);
 
     await this.revokeForApiGateway(jtis);
 

@@ -1,11 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
-import { Types } from 'mongoose';
 import { UserService } from './user.service';
 import { HashService } from './hash.service';
-import { User } from './schemas';
 import { SignInDto, SignUpDto } from '../../common/dtos';
 import { TokenLimits } from '../../common/enums';
+
+// TODO Remove dependency from mongoose, switch to typeorm
+class ObjectId {
+  public id;
+
+  constructor() {
+    this.id = '507f1f77bcf86cd799439011';
+  }
+
+  toString() {
+    return this.id;
+  }
+}
+const Types = {
+  ObjectId: ObjectId,
+};
 
 interface MongoError extends Error {
   code: number;
@@ -35,7 +48,7 @@ describe('UserService', () => {
       providers: [
         UserService,
         { provide: HashService, useValue: mockHashService },
-        { provide: getModelToken(User.name), useValue: mockUserModel },
+        { provide: '1234', useValue: mockUserModel }, // TODO Fix
       ],
     }).compile();
 
@@ -53,9 +66,9 @@ describe('UserService', () => {
       expect(typeof userService.createUser).toBe('function');
     });
 
-    it('should define getUserById()', () => {
-      expect(userService.getUserById).toBeDefined();
-      expect(typeof userService.getUserById).toBe('function');
+    it('should define getUserEmailAndUsername()', () => {
+      expect(userService.getUserEmailAndUsername).toBeDefined();
+      expect(typeof userService.getUserEmailAndUsername).toBe('function');
     });
 
     it('should define verifyUser()', () => {
@@ -158,7 +171,7 @@ describe('UserService', () => {
     });
   });
 
-  describe('getUserById', () => {
+  describe('getUserEmailAndUsername', () => {
     it('should return the user for a given ID', async () => {
       const userId = new Types.ObjectId().toString();
       const mockUser = { _id: userId, username: 'testUser' };
@@ -166,7 +179,7 @@ describe('UserService', () => {
       mockUserModel.findById.mockReturnThis();
       mockUserModel.lean.mockResolvedValue(mockUser);
 
-      const result = await userService.getUserById(userId);
+      const result = await userService.getUserEmailAndUsername(userId);
 
       expect(mockUserModel.findById).toHaveBeenCalledWith(userId, undefined);
       expect(result).toEqual(mockUser);
@@ -176,7 +189,8 @@ describe('UserService', () => {
       mockUserModel.findById.mockReturnThis();
       mockUserModel.lean.mockResolvedValue(null);
 
-      const result = await userService.getUserById('nonexistentUserId');
+      const result =
+        await userService.getUserEmailAndUsername('nonexistentUserId');
 
       expect(result).toBeNull();
     });

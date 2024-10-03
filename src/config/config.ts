@@ -26,8 +26,9 @@ const appConfig: AppConfig = {
   description: process.env.npm_package_description || 'Authorization API',
   port: parseInt(process.env.PORT || '3000', 10),
   ip: process.env.IP,
-  mongodbUrl: process.env.MONGODB_URL,
+  databaseUrl: process.env.DATABASE_URL || '',
   redisUrl: process.env.REDIS_URL || '',
+  grpcServerUrl: process.env.GRPC_SERVER_URL || '',
   apiGatewayTokenRevokeUrl: process.env.API_GATEWAY_TOKEN_REVOKE_URL || '',
   email: {
     host: process.env.EMAIL_HOST || '',

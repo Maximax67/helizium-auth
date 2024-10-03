@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, ProjectionType, Types } from 'mongoose';
+import { Inject, Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { QueryRunner, Repository } from 'typeorm';
 
-import { User } from './schemas';
+import { User } from './entities';
 import { HashService } from './hash.service';
 import { SignInDto, SignUpDto } from '../../common/dtos';
 import { TokenLimits, MfaMethods } from '../../common/enums';
@@ -10,70 +10,178 @@ import { TokenLimits, MfaMethods } from '../../common/enums';
 import { MfaInfo } from '../../common/interfaces';
 import { VerifiedUser } from './interfaces';
 
+import { ClientGrpc } from '@nestjs/microservices';
+import { UsersServiceClient } from './users.grpc';
+import { firstValueFrom } from 'rxjs';
+
 @Injectable()
 export class UserService {
+  private usersServiceClient: UsersServiceClient;
+
   constructor(
     private readonly hashService: HashService,
 
-    @InjectModel(User.name)
-    private readonly userModel: Model<User>,
+    @InjectRepository(User)
+    private usersRepository: Repository<User>,
+
+    @Inject('USERS_PACKAGE') private readonly client: ClientGrpc,
   ) {}
 
-  async createUser(userData: SignUpDto): Promise<Types.ObjectId> {
+  onModuleInit() {
+    this.usersServiceClient =
+      this.client.getService<UsersServiceClient>('UsersService');
+  }
+
+  async createUser(userData: SignUpDto): Promise<string> {
     const { username, email, password } = userData;
-    const passwordHash = await this.hashService.hashData(password);
 
-    try {
-      const newUser = await this.userModel.create({
-        username,
-        email,
-        passwordHash,
-      });
+    const userExists = await this.usersRepository.findOne({
+      where: { username, email },
+      select: ['isDeleted'],
+    });
 
-      return newUser._id;
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        'code' in error &&
-        (error as any).code === 11000
-      ) {
-        //throw ApiError.fromTemplate(ApiErrorTemplates.UserAlreadyExists);
+    if (userExists) {
+      if (userExists.isDeleted) {
+        throw new Error('User with the same username or email was deleted');
       }
 
+      throw new Error('User already exists');
+    }
+
+    const userIdResponse = await firstValueFrom(
+      this.usersServiceClient.signUp({ username }),
+    );
+    const userId = userIdResponse.userId;
+
+    const passwordHash = await this.hashService.hashData(password);
+
+    await this.usersRepository.insert({
+      id: Buffer.from(userId, 'hex'),
+      username,
+      email,
+      passwordHash,
+    });
+
+    return userId;
+  }
+
+  private async performUserUpdate(
+    userId: string,
+    updateData: any,
+    remoteServiceCall: () => Promise<void>,
+  ): Promise<boolean> {
+    const queryRunner: QueryRunner =
+      this.usersRepository.manager.connection.createQueryRunner();
+    await queryRunner.startTransaction();
+
+    try {
+      const result = await queryRunner.manager.update(
+        this.usersRepository.target,
+        { id: Buffer.from(userId, 'hex'), isDeleted: false },
+        updateData,
+      );
+
+      if (!result.affected) {
+        await queryRunner.rollbackTransaction();
+        return false;
+      }
+
+      try {
+        await remoteServiceCall();
+      } catch (error) {
+        // Ignore the exception with code 9 (FAILED_PRECONDITION) or 5 (NOT_FOUND).
+        if (
+          !error ||
+          ((error as any).code !== 9 && (error as any).code !== 5)
+        ) {
+          throw error;
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      return true;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
       throw error;
+    } finally {
+      await queryRunner.release();
     }
   }
 
-  async getUserById(
-    userId: string,
-    projection?: ProjectionType<User>,
-  ): Promise<User | null> {
-    return await this.userModel.findById(userId, projection).lean();
+  async ban(userId: string): Promise<boolean> {
+    return await this.performUserUpdate(
+      userId,
+      { isBanned: true, isDeleted: false },
+      async () => {
+        await firstValueFrom(this.usersServiceClient.unbanUser({ userId }));
+      },
+    );
+  }
+
+  async unban(userId: string): Promise<boolean> {
+    return await this.performUserUpdate(
+      userId,
+      { isBanned: false, isDeleted: false },
+      async () => {
+        await firstValueFrom(this.usersServiceClient.unbanUser({ userId }));
+      },
+    );
+  }
+
+  async delete(userId: string): Promise<boolean> {
+    return await this.performUserUpdate(
+      userId,
+      {
+        isDeleted: true,
+        passwordHash: null,
+        totpSecret: null,
+        isMfaRequired: false,
+      },
+      async () => {
+        await firstValueFrom(this.usersServiceClient.deleteUser({ userId }));
+      },
+    );
+  }
+
+  async getUserById(userId: string): Promise<User | null> {
+    return await this.usersRepository.findOneBy({
+      id: Buffer.from(userId, 'hex'),
+    });
+  }
+
+  async getUserEmailAndUsername(userId: string): Promise<User | null> {
+    return await this.usersRepository.findOne({
+      where: { id: Buffer.from(userId, 'hex') },
+      select: ['email', 'username'],
+    });
   }
 
   async verifyUser(signInData: SignInDto): Promise<VerifiedUser | null> {
     const { login, password } = signInData;
 
     const findParams = login.includes('@')
-      ? { email: login }
-      : { username: login };
+      ? { email: login, isDeleted: false }
+      : { username: login, isDeleted: false };
 
-    const user = await this.userModel
-      .findOne(findParams, {
-        passwordHash: 1,
-        isEmailConfirmed: 1,
-        isBanned: 1,
-        mfaRequired: 1,
-        totpSecret: 1,
-      })
-      .lean();
+    const user = await this.usersRepository.findOne({
+      where: findParams,
+      select: [
+        'id',
+        'passwordHash',
+        'isEmailConfirmed',
+        'isBanned',
+        'isMfaRequired',
+        'totpSecret',
+      ],
+    });
 
     if (
       user &&
+      user.passwordHash &&
       (await this.hashService.compareHash(password, user.passwordHash))
     ) {
       let limits = TokenLimits.DEFAULT;
-      if (user.mfaRequired) {
+      if (user.isMfaRequired) {
         limits = TokenLimits.MFA_REQUIRED;
       } else if (user.isBanned) {
         limits = TokenLimits.USER_BANNED;
@@ -81,21 +189,19 @@ export class UserService {
         limits = TokenLimits.EMAIL_NOT_CONFIRMED;
       }
 
-      const mfa = this.getMfaInfo(user.mfaRequired, !!user.totpSecret);
+      const mfa = this.getMfaInfo(user.isMfaRequired, !!user.totpSecret);
 
-      return { userId: user._id, limits, mfa };
+      return { userId: user.id.toString('hex'), limits, mfa };
     }
 
     return null;
   }
 
   async isUserHasLimits(userId: string): Promise<TokenLimits | null> {
-    const user = await this.userModel
-      .findById(userId, {
-        isEmailConfirmed: 1,
-        isBanned: 1,
-      })
-      .lean();
+    const user = await this.usersRepository.findOne({
+      where: { id: Buffer.from(userId, 'hex'), isDeleted: false },
+      select: ['isBanned', 'isEmailConfirmed'],
+    });
 
     if (!user) {
       return null;
@@ -126,19 +232,12 @@ export class UserService {
   }
 
   async confirmEmailIfNotConfirmed(userId: string): Promise<boolean> {
-    const result = await this.userModel.findOneAndUpdate(
-      {
-        _id: userId,
-        isEmailConfirmed: false,
-      },
-      {
-        $set: {
-          isEmailConfirmed: true,
-        },
-      },
+    const result = await this.usersRepository.update(
+      { id: Buffer.from(userId, 'hex'), isEmailConfirmed: false },
+      { isEmailConfirmed: true },
     );
 
-    return result !== null;
+    return !!result.affected;
   }
 
   private getMfaInfo(mfaRequired: boolean, isTotpSet: boolean): MfaInfo {
@@ -153,48 +252,53 @@ export class UserService {
   }
 
   async getUserMfaInfo(userId: string): Promise<MfaInfo> {
-    const user = await this.userModel
-      .findById(userId, {
-        mfaRequired: 1,
-        totpSecret: 1,
-      })
-      .lean();
+    const user = await this.usersRepository.findOne({
+      where: { id: Buffer.from(userId, 'hex'), isDeleted: false },
+      select: ['isMfaRequired', 'totpSecret'],
+    });
 
     if (!user) {
       throw new Error('User not found');
     }
 
-    return this.getMfaInfo(user.mfaRequired, !!user.totpSecret);
+    return this.getMfaInfo(user.isMfaRequired, !!user.totpSecret);
   }
 
   async changeMfaRequired(userId: string, required: boolean): Promise<void> {
-    await this.userModel.findByIdAndUpdate(userId, {
-      $set: {
-        mfaRequired: required,
+    const result = await this.usersRepository.update(
+      {
+        id: Buffer.from(userId, 'hex'),
+        isMfaRequired: required,
+        isDeleted: false,
       },
-    });
+      { isMfaRequired: required },
+    );
+
+    if (!result.affected) {
+      throw new Error('Not modified');
+    }
   }
 
   async disableTotpMfa(userId: string): Promise<void> {
-    await this.userModel.findByIdAndUpdate(userId, {
-      $set: {
-        totpSecret: null,
-      },
-    });
+    await this.usersRepository.update(
+      { id: Buffer.from(userId, 'hex'), isDeleted: false },
+      { totpSecret: null },
+    );
   }
 
   async setTotpSecret(userId: string, totpSecret: string): Promise<void> {
-    await this.userModel.findByIdAndUpdate(userId, {
-      $set: {
-        totpSecret,
-      },
-    });
+    await this.usersRepository.update(
+      { id: Buffer.from(userId, 'hex'), isDeleted: false },
+      { totpSecret },
+    );
   }
 
   async getTotpSecret(userId: string): Promise<string | null> {
-    const searchResult = await this.userModel.findById(userId, {
-      totpSecret: 1,
+    const searchResult = await this.usersRepository.findOne({
+      where: { id: Buffer.from(userId, 'hex'), isDeleted: false },
+      select: ['totpSecret'],
     });
+
     if (!searchResult) {
       throw new Error('User not found');
     }

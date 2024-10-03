@@ -6,13 +6,8 @@ jest.mock('bcrypt');
 
 describe('HashService', () => {
   let service: HashService;
-  let mockConfigService: { get: jest.Mock };
 
   beforeEach(async () => {
-    mockConfigService = {
-      get: jest.fn().mockReturnValue(10),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [HashService],
     }).compile();
