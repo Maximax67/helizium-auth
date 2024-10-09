@@ -13,6 +13,7 @@ import { VerifiedUser } from './interfaces';
 import { ClientGrpc } from '@nestjs/microservices';
 import { UsersServiceClient } from './users.grpc';
 import { firstValueFrom } from 'rxjs';
+import { SYSTEM_USERNAME } from '../../common/constants';
 
 @Injectable()
 export class UserService {
@@ -35,6 +36,10 @@ export class UserService {
   async createUser(userData: SignUpDto): Promise<string> {
     const { username, email, password } = userData;
 
+    if (username.toLowerCase() === SYSTEM_USERNAME.toLowerCase()) {
+      throw new Error('User with the same username or email already exists');
+    }
+
     const userExists = await this.usersRepository.findOne({
       where: { username, email },
       select: ['isDeleted'],
@@ -45,11 +50,11 @@ export class UserService {
         throw new Error('User with the same username or email was deleted');
       }
 
-      throw new Error('User already exists');
+      throw new Error('User with the same username or email already exists');
     }
 
     const userIdResponse = await firstValueFrom(
-      this.usersServiceClient.signUp({ username }),
+      this.usersServiceClient.signUp({ username, email }),
     );
     const userId = userIdResponse.userId;
 
@@ -143,12 +148,6 @@ export class UserService {
     );
   }
 
-  async getUserById(userId: string): Promise<User | null> {
-    return await this.usersRepository.findOneBy({
-      id: Buffer.from(userId, 'hex'),
-    });
-  }
-
   async getUserEmailAndUsername(userId: string): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { id: Buffer.from(userId, 'hex') },
@@ -160,7 +159,7 @@ export class UserService {
     const { login, password } = signInData;
 
     const findParams = login.includes('@')
-      ? { email: login, isDeleted: false }
+      ? { email: login.toLowerCase(), isDeleted: false }
       : { username: login, isDeleted: false };
 
     const user = await this.usersRepository.findOne({

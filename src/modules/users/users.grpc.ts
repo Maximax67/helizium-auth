@@ -13,8 +13,9 @@ export const protobufPackage = "users";
 export interface Empty {
 }
 
-export interface UserNameMsg {
+export interface SignUpMsg {
   username: string;
+  email: string;
 }
 
 export interface UserIdMsg {
@@ -24,7 +25,7 @@ export interface UserIdMsg {
 export const USERS_PACKAGE_NAME = "users";
 
 export interface UsersServiceClient {
-  signUp(request: UserNameMsg): Observable<UserIdMsg>;
+  signUp(request: SignUpMsg): Observable<UserIdMsg>;
 
   banUser(request: UserIdMsg): Observable<Empty>;
 
@@ -34,7 +35,7 @@ export interface UsersServiceClient {
 }
 
 export interface UsersServiceController {
-  signUp(request: UserNameMsg): Promise<UserIdMsg> | Observable<UserIdMsg> | UserIdMsg;
+  signUp(request: SignUpMsg): Promise<UserIdMsg> | Observable<UserIdMsg> | UserIdMsg;
 
   banUser(request: UserIdMsg): Promise<Empty> | Observable<Empty> | Empty;
 

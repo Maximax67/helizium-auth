@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import { Length, Matches, MaxLength } from 'class-validator';
 
 export class SignUpDto {
@@ -8,6 +9,9 @@ export class SignUpDto {
   })
   username: string;
 
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
   @MaxLength(254)
   @Matches(/^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/, {
     message: 'Email is not valid.',

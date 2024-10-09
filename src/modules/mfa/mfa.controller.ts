@@ -8,6 +8,7 @@ import {
   UseGuards,
   Res,
   Req,
+  VERSION_NEUTRAL,
 } from '@nestjs/common';
 import { FastifyReply, FastifyRequest } from 'fastify';
 
@@ -29,7 +30,7 @@ import {
   OptionalAuthorization,
 } from '../../common/decorators';
 
-@Controller('auth/mfa')
+@Controller({ path: 'auth/mfa', version: VERSION_NEUTRAL })
 @UseGuards(AuthorizedGuard, ForbidApiTokensGuard)
 export class MfaController {
   constructor(private readonly mfaService: MfaService) {}

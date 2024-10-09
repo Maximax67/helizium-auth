@@ -7,6 +7,7 @@ import {
   Req,
   Res,
   Get,
+  VERSION_NEUTRAL,
 } from '@nestjs/common';
 import { FastifyRequest, FastifyReply } from 'fastify';
 
@@ -18,7 +19,7 @@ import { CurrentToken } from '../../common/decorators';
 import { TokenInfo } from '../../common/interfaces';
 import { Serialize } from '../../common/interceptors';
 
-@Controller('auth')
+@Controller({ path: 'auth', version: VERSION_NEUTRAL })
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 

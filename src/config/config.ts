@@ -57,6 +57,10 @@ const appConfig: AppConfig = {
       process.env.EMAIL_TIME_TO_VERIFY_COOKIE || '300',
       10,
     ),
+    apiTokensJtiCacheTtl: parseInt(
+      process.env.API_TOKENS_JTI_CACHE_TTL || '3600',
+      10,
+    ),
   },
   keys: {
     jwtAccessPrivateKey: readKeyFile('rsa-access.key'),

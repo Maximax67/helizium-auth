@@ -38,6 +38,10 @@ export class TokenService {
     return `token:${jti}:${userId}`;
   }
 
+  private getApiTokenCacheStorageKey(jti: string) {
+    return `token-api:${jti}`;
+  }
+
   private async postRevocationRequest(jti: string): Promise<void> {
     await axios.post(
       config.apiGatewayTokenRevokeUrl,
@@ -50,7 +54,7 @@ export class TokenService {
     );
   }
 
-  private async revokeForApiGateway(jti: string | string[]): Promise<void> {
+  public async revokeForApiGateway(jti: string | string[]): Promise<void> {
     if (Array.isArray(jti)) {
       if (!jti.length) {
         return;
@@ -175,6 +179,37 @@ export class TokenService {
     return token;
   }
 
+  private async validateApiTokenInDatabase(jti: string): Promise<boolean> {
+    const result = await this.apiTokensRepository
+      .createQueryBuilder()
+      .select('1')
+      .where({ jti })
+      .execute();
+
+    return !!result.length;
+  }
+
+  // TODO Add tests
+  async validateApiToken(jti: string): Promise<boolean> {
+    const cacheTtl = config.security.apiTokensJtiCacheTtl;
+    if (!cacheTtl) {
+      return await this.validateApiTokenInDatabase(jti);
+    }
+
+    const redisKey = this.getApiTokenCacheStorageKey(jti);
+    if (await this.redisService.get(redisKey)) {
+      return true;
+    }
+
+    if (!(await this.validateApiTokenInDatabase(jti))) {
+      return false;
+    }
+
+    await this.redisService.set(redisKey, '1', cacheTtl);
+
+    return true;
+  }
+
   async validateToken(
     token: string,
     isApiToken: boolean,
@@ -206,20 +241,8 @@ export class TokenService {
           if (!status) {
             return null;
           }
-        } else {
-          const limits = decoded.limits;
-          const searchResult = await this.apiTokensRepository.findOne({
-            where: { userId: Buffer.from(userId, 'hex'), jti },
-            select: ['writeAccess'],
-          });
-
-          if (
-            !searchResult ||
-            (searchResult.writeAccess && limits !== TokenLimits.DEFAULT) ||
-            (!searchResult.writeAccess && limits !== TokenLimits.READ_ONLY)
-          ) {
-            return null;
-          }
+        } else if (!(await this.validateApiToken(jti))) {
+          return null;
         }
 
         return {
@@ -350,6 +373,12 @@ export class TokenService {
       return false;
     }
 
+    // TODO add to tests
+    if (config.security.apiTokensJtiCacheTtl) {
+      const redisKey = this.getApiTokenCacheStorageKey(jti);
+      await this.redisService.delete(redisKey);
+    }
+
     await this.revokeForApiGateway(jti);
 
     return true;
@@ -369,6 +398,15 @@ export class TokenService {
     }
 
     const jtis = result.raw.map((token: Partial<ApiToken>) => token.jti);
+
+    // TODO add to tests
+    if (config.security.apiTokensJtiCacheTtl) {
+      const jtisRedisKeys = jtis.map((jti: string) =>
+        this.getApiTokenCacheStorageKey(jti),
+      );
+
+      await this.redisService.deleteMany(jtisRedisKeys);
+    }
 
     await this.revokeForApiGateway(jtis);
 

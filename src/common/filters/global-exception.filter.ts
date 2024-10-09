@@ -21,14 +21,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const { method, url, query, params, body } = request;
     const timestamp = new Date().toISOString();
     const loggedRecordId = generateErrorId();
+
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
+
     const message =
       exception instanceof HttpException
         ? exception.message
         : 'Internal Server Error';
+
     const errorTemplateId =
       exception instanceof ApiError ? exception.getErrorId() : null;
 
@@ -36,7 +39,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     let toSend: object = {
       statusCode: status,
       timestamp,
-      path: url,
       type: errorTemplateId ?? undefined,
       loggedRecordId,
     };
@@ -69,6 +71,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       `Query: ${queryString};\n`;
 
     if (method !== 'GET') {
+      if (body && typeof body === 'object' && 'password' in body) {
+        body.password = '<hidden>';
+      }
+
       debugMessage += `Body: ${objectToString(body)};\n`;
     }
 

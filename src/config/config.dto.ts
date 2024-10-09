@@ -75,6 +75,10 @@ class SecurityConfig {
   @IsInt()
   @IsPositive()
   emailTimeToVerifyCookie: number;
+
+  @IsInt()
+  @Min(0)
+  apiTokensJtiCacheTtl: number;
 }
 
 class KeysConfig {

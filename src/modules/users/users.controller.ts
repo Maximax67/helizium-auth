@@ -1,34 +1,15 @@
-import {
-  Controller,
-  Get,
-  HttpCode,
-  Param,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, HttpCode, Param, Post } from '@nestjs/common';
 import { UserService } from './user.service';
 import { ValidateMongoId } from '../../common/pipes';
 import { TokenService } from '../tokens';
 import { TokenStatuses } from '../../common/enums';
-import { AuthorizedGuard } from '../../common/guards';
-import { CurrentToken } from '../../common/decorators';
-import { TokenInfo } from '../../common/interfaces';
-import { Serialize } from '../../common/interceptors';
-import { UserDto } from './dtos';
 
-@Controller('users')
+@Controller({ path: 'users', version: '1' })
 export class UsersController {
   constructor(
     private readonly userService: UserService,
     private readonly tokenService: TokenService,
   ) {}
-
-  @Get('/me')
-  @Serialize(UserDto)
-  @UseGuards(AuthorizedGuard)
-  async me(@CurrentToken() token: TokenInfo) {
-    return this.userService.getUserById(token.userId);
-  }
 
   @Post('/:userId/ban')
   @HttpCode(204)

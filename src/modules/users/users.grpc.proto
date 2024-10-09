@@ -3,7 +3,7 @@ syntax = "proto3";
 package users;
 
 service UsersService {
-  rpc SignUp (UserNameMsg) returns (UserIdMsg);
+  rpc SignUp (SignUpMsg) returns (UserIdMsg);
   rpc BanUser (UserIdMsg) returns (Empty);
   rpc UnbanUser (UserIdMsg) returns (Empty);
   rpc DeleteUser (UserIdMsg) returns (Empty);
@@ -11,8 +11,9 @@ service UsersService {
 
 message Empty {}
 
-message UserNameMsg {
+message SignUpMsg {
   string username = 1;
+  string email = 2;
 }
 
 message UserIdMsg {
