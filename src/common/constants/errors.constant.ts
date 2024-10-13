@@ -50,6 +50,10 @@ const errorTemplates = {
     message: 'Forbidden access with current token limits',
     status: HttpStatus.FORBIDDEN, // 403
   },
+  REVOKED_API_TOKEN: {
+    message: 'API token was revoked',
+    status: HttpStatus.FORBIDDEN, // 403
+  },
   USER_NOT_FOUND: {
     message: 'User does not exist',
     status: HttpStatus.NOT_FOUND, // 404
