@@ -16,6 +16,8 @@ import { MfaInfo } from '../../common/interfaces';
 import { CookieNames, TokenLimits, TokenStatuses } from '../../common/enums';
 import { EmailCookieTokenStatuses } from './enums';
 import { EmailTokenRedisValue } from './interfaces';
+import { ApiError } from '../../common/errors';
+import { Errors } from '../../common/constants';
 
 @Injectable()
 export class MfaService {
@@ -114,7 +116,7 @@ export class MfaService {
     const user = await this.userService.getUserEmailAndUsername(userId);
 
     if (!user) {
-      throw new Error('User not exists');
+      throw new ApiError(Errors.USER_NOT_FOUND);
     }
 
     const cookieToken = nanoid();
@@ -142,13 +144,13 @@ export class MfaService {
   ): Promise<void> {
     const cookieToken = this.getEmailCookieToken(req);
     if (!cookieToken) {
-      throw new Error('Cookie token not in request');
+      throw new ApiError(Errors.COOKIE_TOKEN_MISSING);
     }
 
     const storageKey = this.getEmailTokenStorageKey(userId, cookieToken);
     const redisValue = await this.getTokenStatusAndOtpByKey(storageKey);
     if (!redisValue) {
-      throw new Error('Cookie token is invalid');
+      throw new ApiError(Errors.EMAIL_TOKEN_INVALID);
     }
 
     await this.emailOtpService.invalidateOtp(userId, redisValue.otp);
@@ -168,7 +170,7 @@ export class MfaService {
     const userCookieToken = this.getEmailCookieToken(req);
     const otpCookieToken = await this.emailOtpService.verifyOtp(userId, code);
     if (!otpCookieToken) {
-      throw new Error('Invalid code/link');
+      throw new ApiError(Errors.EMAIL_CONFIRMATION_INVALID);
     }
 
     const tokenStorageKey = this.getEmailTokenStorageKey(
@@ -181,7 +183,7 @@ export class MfaService {
       !redisValue ||
       redisValue.status !== EmailCookieTokenStatuses.NOT_CONFIRMED
     ) {
-      throw new Error('Invalid code/link');
+      throw new ApiError(Errors.EMAIL_CONFIRMATION_INVALID);
     }
 
     if (await this.userService.confirmEmailIfNotConfirmed(userId)) {
@@ -227,7 +229,7 @@ export class MfaService {
   ): Promise<boolean> {
     const cookieToken = this.getEmailCookieToken(req);
     if (!cookieToken) {
-      throw new Error('Cookie token not in request');
+      throw new ApiError(Errors.COOKIE_TOKEN_MISSING);
     }
 
     const tokenStorageKey = this.getEmailTokenStorageKey(userId, cookieToken);
@@ -235,7 +237,7 @@ export class MfaService {
       ?.status;
 
     if (!tokenStatus) {
-      throw new Error('Invalid email token');
+      throw new ApiError(Errors.EMAIL_TOKEN_INVALID);
     }
 
     if (tokenStatus !== EmailCookieTokenStatuses.CONFIRMED) {
@@ -272,7 +274,7 @@ export class MfaService {
       limits === TokenLimits.ROOT || limits === TokenLimits.BANNED_ROOT;
 
     if (!(await this.totpAuthService.validateTotp(userId, token, isRoot))) {
-      throw new Error('invalid totp');
+      throw new ApiError(Errors.INVALID_TOTP);
     }
 
     if (!isRoot) {

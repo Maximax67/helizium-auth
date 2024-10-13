@@ -20,6 +20,8 @@ import {
 } from './interfaces';
 import { config } from '../../config';
 import { ApiTokenDto } from './dtos';
+import { ApiError } from '../../common/errors';
+import { Errors } from '../../common/constants';
 
 @Injectable()
 export class TokenService {
@@ -189,7 +191,6 @@ export class TokenService {
     return !!result.length;
   }
 
-  // TODO Add tests
   async validateApiToken(jti: string): Promise<boolean> {
     const cacheTtl = config.security.apiTokensJtiCacheTtl;
     if (!cacheTtl) {
@@ -304,7 +305,7 @@ export class TokenService {
     });
 
     if (!token) {
-      throw new Error('Not found api token');
+      throw new ApiError(Errors.NOT_FOUND_API_TOKEN);
     }
 
     return token;
@@ -373,7 +374,6 @@ export class TokenService {
       return false;
     }
 
-    // TODO add to tests
     if (config.security.apiTokensJtiCacheTtl) {
       const redisKey = this.getApiTokenCacheStorageKey(jti);
       await this.redisService.delete(redisKey);
@@ -399,7 +399,6 @@ export class TokenService {
 
     const jtis = result.raw.map((token: Partial<ApiToken>) => token.jti);
 
-    // TODO add to tests
     if (config.security.apiTokensJtiCacheTtl) {
       const jtisRedisKeys = jtis.map((jti: string) =>
         this.getApiTokenCacheStorageKey(jti),

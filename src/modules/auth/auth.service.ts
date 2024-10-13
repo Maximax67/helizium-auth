@@ -9,6 +9,8 @@ import { CookieNames, TokenLimits, TokenStatuses } from '../../common/enums';
 import { SignInDto, SignUpDto } from '../../common/dtos';
 import { Jwk, MfaInfo, Token } from '../../common/interfaces';
 import { getJwks } from '../../common/helpers';
+import { ApiError } from '../../common/errors';
+import { Errors } from '../../common/constants';
 
 @Injectable()
 export class AuthService {
@@ -64,8 +66,7 @@ export class AuthService {
   async sign(signInDto: SignInDto, res: FastifyReply): Promise<MfaInfo> {
     const verifiedUser = await this.userService.verifyUser(signInDto);
     if (!verifiedUser) {
-      //throw ApiError.fromTemplate(ApiErrorTemplates.InvalidCredentials);
-      throw new Error('inv cred');
+      throw new ApiError(Errors.INVALID_CREDENTIALS);
     }
 
     const { userId, limits, mfa } = verifiedUser;
@@ -84,7 +85,7 @@ export class AuthService {
       this.deleteCookiesTokenPair(res);
       this.deleteConfirmEmailCookie(res);
 
-      throw new Error('t inv');
+      throw new ApiError(Errors.REFRESH_TOKEN_INVALID_OR_MISSING);
     }
 
     const validationResult =
@@ -93,7 +94,7 @@ export class AuthService {
       this.deleteCookiesTokenPair(res);
       this.deleteConfirmEmailCookie(res);
 
-      throw new Error('t inv');
+      throw new ApiError(Errors.REFRESH_TOKEN_INVALID_OR_MISSING);
     }
 
     const { decoded, status } = validationResult;
@@ -108,8 +109,7 @@ export class AuthService {
       if (currentLimits === null) {
         this.deleteCookiesTokenPair(res);
         this.deleteConfirmEmailCookie(res);
-        //throw ApiError.fromTemplate(ApiErrorTemplates.JWTTokenInvalid);
-        throw new Error('t inv');
+        throw new ApiError(Errors.REFRESH_TOKEN_INVALID_OR_MISSING);
       }
 
       if (status === TokenStatuses.BECAME_ROOT) {

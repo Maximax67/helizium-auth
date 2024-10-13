@@ -4,6 +4,8 @@ import { TotpService } from '../totp';
 import { RedisService } from '../redis';
 import { UserService } from '../users';
 import { config } from '../../config';
+import { ApiError } from '../../common/errors';
+import { Errors } from '../../common/constants';
 
 @Injectable()
 export class TotpAuthService {
@@ -51,8 +53,7 @@ export class TotpAuthService {
     }
 
     if (isRoot) {
-      throw new Error('mfa passed');
-      //throw ApiError.fromTemplate(ApiErrorTemplates.MfaAlreadyPassed);
+      throw new ApiError(Errors.MFA_ALREADY_PASSED);
     }
 
     const secret = await this.userService.getTotpSecret(userId);

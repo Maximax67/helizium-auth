@@ -13,7 +13,8 @@ import { VerifiedUser } from './interfaces';
 import { ClientGrpc } from '@nestjs/microservices';
 import { UsersServiceClient } from './users.grpc';
 import { firstValueFrom } from 'rxjs';
-import { SYSTEM_USERNAME } from '../../common/constants';
+import { Errors, SYSTEM_USERNAME } from '../../common/constants';
+import { ApiError } from '../../common/errors';
 
 @Injectable()
 export class UserService {
@@ -37,7 +38,7 @@ export class UserService {
     const { username, email, password } = userData;
 
     if (username.toLowerCase() === SYSTEM_USERNAME.toLowerCase()) {
-      throw new Error('User with the same username or email already exists');
+      throw new ApiError(Errors.USER_ALREADY_EXISTS);
     }
 
     const userExists = await this.usersRepository.findOne({
@@ -47,10 +48,10 @@ export class UserService {
 
     if (userExists) {
       if (userExists.isDeleted) {
-        throw new Error('User with the same username or email was deleted');
+        throw new ApiError(Errors.USER_DELETED);
       }
 
-      throw new Error('User with the same username or email already exists');
+      throw new ApiError(Errors.USER_ALREADY_EXISTS);
     }
 
     const userIdResponse = await firstValueFrom(
@@ -257,7 +258,7 @@ export class UserService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new ApiError(Errors.USER_NOT_FOUND);
     }
 
     return this.getMfaInfo(user.isMfaRequired, !!user.totpSecret);
@@ -274,7 +275,7 @@ export class UserService {
     );
 
     if (!result.affected) {
-      throw new Error('Not modified');
+      throw new ApiError(Errors.NOT_MODIFIED);
     }
   }
 
@@ -299,7 +300,7 @@ export class UserService {
     });
 
     if (!searchResult) {
-      throw new Error('User not found');
+      throw new ApiError(Errors.USER_NOT_FOUND);
     }
 
     return searchResult.totpSecret ?? null;

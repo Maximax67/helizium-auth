@@ -65,7 +65,7 @@ export class AuthorizedGuard implements CanActivate {
     }
 
     if (tokenInfo.status !== TokenStatuses.ACTIVE) {
-      throw new Error('Refresh required');
+      throw new ApiError(Errors.JWT_TOKEN_INACTIVE);
     }
 
     (request as any).auth = tokenInfo.decoded;

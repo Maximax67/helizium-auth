@@ -12,6 +12,8 @@ import {
 import { User } from '../../users/entities';
 import { Entities } from '../../../common/enums';
 import { config } from '../../../config';
+import { ApiError } from '../../../common/errors';
+import { Errors } from '../../../common/constants';
 
 @Entity(Entities.API_TOKEN)
 export class ApiToken {
@@ -44,7 +46,7 @@ export class ApiToken {
     });
 
     if (tokenCount >= config.security.apiTokensLimitPerUser) {
-      throw new Error('Max API tokens reached');
+      throw new ApiError(Errors.API_TOKENS_LIMIT_REACHED);
     }
   }
 }

@@ -22,6 +22,7 @@ import {
   JtiDto,
 } from './dtos';
 import { ApiError } from '../../common/errors';
+import { Errors } from '../../common/constants';
 
 @Controller({ path: 'auth/api-tokens', version: VERSION_NEUTRAL })
 export class TokensController {
@@ -35,12 +36,7 @@ export class TokensController {
     if (!result) {
       await this.tokenService.revokeForApiGateway(jti);
 
-      // TODO Move to error templates
-      throw new ApiError({
-        id: 'REVOKED_API_TOKEN',
-        message: 'API token was revoked',
-        status: 403,
-      });
+      throw new ApiError(Errors.REVOKED_API_TOKEN);
     }
   }
 
@@ -59,7 +55,7 @@ export class TokensController {
   @HttpCode(204)
   async revokeAllUserApiTokens(@CurrentToken() token: TokenInfo) {
     if (!(await this.tokenService.revokeAllUserApiTokens(token.userId))) {
-      throw new Error('User does not have any API tokens');
+      throw new ApiError(Errors.USER_NO_API_TOKENS);
     }
   }
 
@@ -100,7 +96,7 @@ export class TokensController {
     @CurrentToken() token: TokenInfo,
   ) {
     if (!(await this.tokenService.revokeApiToken(token.userId, jti))) {
-      throw new Error('Api token not found');
+      throw new ApiError(Errors.API_TOKEN_NOT_FOUND);
     }
   }
 }
