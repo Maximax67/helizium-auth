@@ -16,9 +16,6 @@ export class MailService {
     this.transporter = transporter;
   }
 
-  // TODO Add unit tests
-  //^ Ensure send options are valid
-  //^ Ensure sendMail method is called for nodemailer transporter
   async sendMail<T extends keyof EmailTemplateContexts>(
     to: string,
     template: T,
@@ -35,9 +32,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      console.log(`Email sent to ${to}`);
     } catch (error) {
-      console.error(`Error sending email to ${to}`);
       throw error;
     }
   }
