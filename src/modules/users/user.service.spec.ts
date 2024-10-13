@@ -1,59 +1,73 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { UserService } from './user.service';
 import { HashService } from './hash.service';
-import { SignInDto, SignUpDto } from '../../common/dtos';
-import { TokenLimits } from '../../common/enums';
+import { User } from './entities';
+import { SignUpDto, SignInDto } from '../../common/dtos';
+import { ClientGrpc } from '@nestjs/microservices';
+import { Repository } from 'typeorm';
+import { of } from 'rxjs';
+import { MfaMethods, TokenLimits } from '../../common/enums';
+import { Errors } from '../../common/constants';
 
-// TODO Remove dependency from mongoose, switch to typeorm
-class ObjectId {
-  public id;
+const mockUserRepository = () => ({
+  findOne: jest.fn(),
+  findOneBy: jest.fn(),
+  insert: jest.fn(),
+  update: jest.fn(),
+  manager: {
+    connection: {
+      createQueryRunner: jest.fn().mockReturnValue({
+        startTransaction: jest.fn(),
+        manager: { update: jest.fn() },
+        commitTransaction: jest.fn(),
+        rollbackTransaction: jest.fn(),
+        release: jest.fn(),
+      }),
+    },
+  },
+});
 
-  constructor() {
-    this.id = '507f1f77bcf86cd799439011';
-  }
+const mockHashService = () => ({
+  hashData: jest.fn(),
+  compareHash: jest.fn(),
+});
 
-  toString() {
-    return this.id;
-  }
-}
-const Types = {
-  ObjectId: ObjectId,
-};
-
-interface MongoError extends Error {
-  code: number;
-}
+const mockGrpcClient = () => ({
+  getService: jest.fn().mockReturnValue({
+    signUp: jest.fn(),
+    unbanUser: jest.fn(),
+    deleteUser: jest.fn(),
+  }),
+});
 
 describe('UserService', () => {
   let userService: UserService;
+  let userRepository: Repository<User>;
   let hashService: HashService;
-
-  const mockUserModel = {
-    create: jest.fn(),
-    findById: jest.fn(),
-    findOne: jest.fn(),
-    findByIdAndUpdate: jest.fn(),
-    findOneAndUpdate: jest.fn(),
-    lean: jest.fn(),
-    exec: jest.fn(),
-  };
-
-  const mockHashService = {
-    hashData: jest.fn(),
-    compareHash: jest.fn(),
-  };
+  let grpcClient: ClientGrpc;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserService,
-        { provide: HashService, useValue: mockHashService },
-        { provide: '1234', useValue: mockUserModel }, // TODO Fix
+        { provide: getRepositoryToken(User), useFactory: mockUserRepository },
+        { provide: HashService, useFactory: mockHashService },
+        { provide: 'USERS_PACKAGE', useFactory: mockGrpcClient },
       ],
     }).compile();
 
     userService = module.get<UserService>(UserService);
+    userRepository = module.get<Repository<User>>(getRepositoryToken(User));
     hashService = module.get<HashService>(HashService);
+    grpcClient = module.get<ClientGrpc>('USERS_PACKAGE');
+
+    const mockUsersServiceClient = {
+      signUp: jest.fn().mockReturnValue(of({ userId: '123' })),
+    };
+    grpcClient.getService = jest.fn().mockReturnValue(mockUsersServiceClient);
+
+    userService.onModuleInit();
   });
 
   it('should be defined', () => {
@@ -118,316 +132,522 @@ describe('UserService', () => {
   });
 
   describe('createUser', () => {
-    it('should create a user and return the user ID', async () => {
-      const signUpDto: SignUpDto = {
-        username: 'test',
-        email: 'test@example.com',
-        password: 'password123',
-      };
-      const userId = new Types.ObjectId();
-
-      mockHashService.hashData.mockResolvedValue('hashedPassword');
-      mockUserModel.create.mockResolvedValue({ _id: userId });
-
-      const result = await userService.createUser(signUpDto);
-
-      expect(hashService.hashData).toHaveBeenCalledWith(signUpDto.password);
-      expect(mockUserModel.create).toHaveBeenCalledWith({
-        username: signUpDto.username,
-        email: signUpDto.email,
-        passwordHash: 'hashedPassword',
+    it('should throw an error if user already exists and is not deleted', async () => {
+      (userRepository.findOne as jest.Mock).mockResolvedValue({
+        isDeleted: false,
       });
-      expect(result).toEqual(userId);
-    });
-
-    it('should throw an error if user already exists', async () => {
-      const error = new Error() as MongoError;
-      error.code = 11000;
-
-      mockUserModel.create.mockRejectedValue(error);
 
       const signUpDto: SignUpDto = {
-        username: 'test',
+        username: 'testuser',
         email: 'test@example.com',
-        password: 'password123',
-      };
-
-      await expect(userService.createUser(signUpDto)).rejects.toThrow();
-    });
-
-    it('should throw a generic error if another database error occurs', async () => {
-      const error = new Error('Database error');
-      mockUserModel.create.mockRejectedValue(error);
-
-      const signUpDto: SignUpDto = {
-        username: 'test',
-        email: 'test@example.com',
-        password: 'password123',
+        password: 'password',
       };
 
       await expect(userService.createUser(signUpDto)).rejects.toThrow(
-        'Database error',
+        Errors.USER_ALREADY_EXISTS.message,
       );
+    });
+
+    it('should throw an error if user exists but was previously deleted', async () => {
+      (userRepository.findOne as jest.Mock).mockResolvedValue({
+        isDeleted: true,
+      });
+
+      const signUpDto: SignUpDto = {
+        username: 'deleteduser',
+        email: 'deleted@example.com',
+        password: 'password',
+      };
+
+      await expect(userService.createUser(signUpDto)).rejects.toThrow(
+        Errors.USER_DELETED.message,
+      );
+    });
+
+    it('should successfully create a new user', async () => {
+      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
+
+      (hashService.hashData as jest.Mock).mockResolvedValue('hashedPassword');
+
+      const signUpDto: SignUpDto = {
+        username: 'newuser',
+        email: 'new@example.com',
+        password: 'password',
+      };
+
+      const userId = await userService.createUser(signUpDto);
+
+      expect(userId).toBe('123');
+      expect(userRepository.insert).toHaveBeenCalledWith({
+        id: Buffer.from('123', 'hex'),
+        username: 'newuser',
+        email: 'new@example.com',
+        passwordHash: 'hashedPassword',
+      });
     });
   });
 
   describe('getUserEmailAndUsername', () => {
-    it('should return the user for a given ID', async () => {
-      const userId = new Types.ObjectId().toString();
-      const mockUser = { _id: userId, username: 'testUser' };
+    it('should return user email and username if user is found', async () => {
+      const mockUser = { email: 'test@example.com', username: 'testuser' };
 
-      mockUserModel.findById.mockReturnThis();
-      mockUserModel.lean.mockResolvedValue(mockUser);
+      (userRepository.findOne as jest.Mock).mockResolvedValue(mockUser);
 
-      const result = await userService.getUserEmailAndUsername(userId);
+      const result = await userService.getUserEmailAndUsername('123');
 
-      expect(mockUserModel.findById).toHaveBeenCalledWith(userId, undefined);
       expect(result).toEqual(mockUser);
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: Buffer.from('123', 'hex') },
+        select: ['email', 'username'],
+      });
     });
 
-    it('should return null if user not found', async () => {
-      mockUserModel.findById.mockReturnThis();
-      mockUserModel.lean.mockResolvedValue(null);
+    it('should return null if user is not found', async () => {
+      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
 
-      const result =
-        await userService.getUserEmailAndUsername('nonexistentUserId');
+      const result = await userService.getUserEmailAndUsername('123');
 
       expect(result).toBeNull();
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: Buffer.from('123', 'hex') },
+        select: ['email', 'username'],
+      });
     });
   });
 
   describe('verifyUser', () => {
-    it('should return a verified user with limits and MFA info', async () => {
-      const signInDto: SignInDto = {
-        login: 'testUser',
-        password: 'password123',
-      };
-      const mockUser = {
-        _id: new Types.ObjectId(),
-        passwordHash: 'hashedPassword',
-        isEmailConfirmed: true,
-        isBanned: false,
-        mfaRequired: false,
-        totpSecret: 'secret',
+    it('should return null if user is not found', async () => {
+      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
+
+      const signInData: SignInDto = {
+        login: 'nonexistentuser',
+        password: 'password',
       };
 
-      mockUserModel.findOne.mockReturnThis();
-      mockUserModel.lean.mockResolvedValue(mockUser);
-      mockHashService.compareHash.mockResolvedValueOnce(true);
+      const result = await userService.verifyUser(signInData);
 
-      const result = await userService.verifyUser(signInDto);
-
-      expect(mockUserModel.findOne).toHaveBeenCalledWith(
-        { username: signInDto.login },
-        expect.any(Object),
-      );
-      expect(hashService.compareHash).toHaveBeenCalledWith(
-        signInDto.password,
-        mockUser.passwordHash,
-      );
-      expect(result).toEqual({
-        userId: mockUser._id,
-        limits: TokenLimits.DEFAULT,
-        mfa: { required: false, methods: ['EMAIL', 'TOTP'] },
+      expect(result).toBeNull();
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { username: 'nonexistentuser', isDeleted: false },
+        select: [
+          'id',
+          'passwordHash',
+          'isEmailConfirmed',
+          'isBanned',
+          'isMfaRequired',
+          'totpSecret',
+        ],
       });
     });
 
-    it('should return null if user verification fails', async () => {
-      const signInDto: SignInDto = {
-        login: 'testUser',
-        password: 'wrongPassword',
-      };
-
-      mockUserModel.findOne.mockReturnThis();
-      mockUserModel.lean.mockResolvedValueOnce(null);
-
-      const result = await userService.verifyUser(signInDto);
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null if password hash comparison fails', async () => {
-      const signInDto: SignInDto = {
-        login: 'testUser',
-        password: 'password123',
-      };
+    it('should return null if password does not match', async () => {
       const mockUser = {
-        _id: new Types.ObjectId(),
+        id: Buffer.from('123', 'hex'),
         passwordHash: 'hashedPassword',
         isEmailConfirmed: true,
         isBanned: false,
-        mfaRequired: false,
-        totpSecret: 'secret',
+        isMfaRequired: false,
+        totpSecret: null,
       };
 
-      mockUserModel.findOne.mockReturnThis();
-      mockUserModel.lean.mockResolvedValue(mockUser);
-      mockHashService.compareHash.mockResolvedValueOnce(false);
+      (userRepository.findOne as jest.Mock).mockResolvedValue(mockUser);
+      (hashService.compareHash as jest.Mock).mockResolvedValue(false);
 
-      const result = await userService.verifyUser(signInDto);
+      const signInData: SignInDto = {
+        login: 'testuser',
+        password: 'wrongpassword',
+      };
+
+      const result = await userService.verifyUser(signInData);
 
       expect(result).toBeNull();
-    });
-  });
-
-  describe('confirmEmailIfNotConfirmed', () => {
-    it('should confirm email if it is not confirmed', async () => {
-      const userId = new Types.ObjectId().toString();
-      mockUserModel.findOneAndUpdate.mockResolvedValueOnce({ _id: userId });
-
-      const result = await userService.confirmEmailIfNotConfirmed(userId);
-
-      expect(mockUserModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { _id: userId, isEmailConfirmed: false },
-        { $set: { isEmailConfirmed: true } },
+      expect(hashService.compareHash).toHaveBeenCalledWith(
+        'wrongpassword',
+        'hashedPassword',
       );
-      expect(result).toBe(true);
     });
 
-    it('should return false if user is already confirmed', async () => {
-      mockUserModel.findOneAndUpdate.mockResolvedValueOnce(null);
+    it('should return user with default limits if password matches and no special limits apply', async () => {
+      const mockUser = {
+        id: Buffer.from('123', 'hex'),
+        passwordHash: 'hashedPassword',
+        isEmailConfirmed: true,
+        isBanned: false,
+        isMfaRequired: false,
+        totpSecret: null,
+      };
 
-      const result = await userService.confirmEmailIfNotConfirmed(
-        new Types.ObjectId().toString(),
-      );
+      (userRepository.findOne as jest.Mock).mockResolvedValue(mockUser);
+      (hashService.compareHash as jest.Mock).mockResolvedValue(true);
 
-      expect(result).toBe(false);
+      const signInData: SignInDto = {
+        login: 'testuser',
+        password: 'correctpassword',
+      };
+
+      const result = await userService.verifyUser(signInData);
+
+      expect(result).toEqual({
+        userId: mockUser.id.toString('hex'),
+        limits: TokenLimits.DEFAULT,
+        mfa: { required: false, methods: [MfaMethods.EMAIL] },
+      });
     });
 
-    it('should confirm email and return true when email is not confirmed', async () => {
-      const userId = new Types.ObjectId().toString();
+    it('should return user with MFA_REQUIRED if MFA is required', async () => {
+      const mockUser = {
+        id: Buffer.from('123', 'hex'),
+        passwordHash: 'hashedPassword',
+        isEmailConfirmed: true,
+        isBanned: false,
+        isMfaRequired: true,
+        totpSecret: 'someTotpSecret',
+      };
 
-      mockUserModel.findOneAndUpdate.mockResolvedValueOnce({ _id: userId });
+      (userRepository.findOne as jest.Mock).mockResolvedValue(mockUser);
+      (hashService.compareHash as jest.Mock).mockResolvedValue(true);
 
-      const result = await userService.confirmEmailIfNotConfirmed(userId);
+      const signInData: SignInDto = {
+        login: 'testuser',
+        password: 'correctpassword',
+      };
 
-      expect(mockUserModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { _id: userId, isEmailConfirmed: false },
-        { $set: { isEmailConfirmed: true } },
-      );
-      expect(result).toBe(true);
+      const result = await userService.verifyUser(signInData);
+
+      expect(result).toEqual({
+        userId: mockUser.id.toString('hex'),
+        limits: TokenLimits.MFA_REQUIRED,
+        mfa: { required: true, methods: [MfaMethods.EMAIL, MfaMethods.TOTP] },
+      });
+    });
+
+    it('should return USER_BANNED if user is banned', async () => {
+      const mockUser = {
+        id: Buffer.from('123', 'hex'),
+        passwordHash: 'hashedPassword',
+        isEmailConfirmed: true,
+        isBanned: true,
+        isMfaRequired: false,
+        totpSecret: null,
+      };
+
+      (userRepository.findOne as jest.Mock).mockResolvedValue(mockUser);
+      (hashService.compareHash as jest.Mock).mockResolvedValue(true);
+
+      const signInData: SignInDto = {
+        login: 'testuser',
+        password: 'correctpassword',
+      };
+
+      const result = await userService.verifyUser(signInData);
+
+      expect(result).toEqual({
+        userId: mockUser.id.toString('hex'),
+        limits: TokenLimits.USER_BANNED,
+        mfa: { required: false, methods: [MfaMethods.EMAIL] },
+      });
+    });
+
+    it('should return EMAIL_NOT_CONFIRMED if email is not confirmed', async () => {
+      const mockUser = {
+        id: Buffer.from('123', 'hex'),
+        passwordHash: 'hashedPassword',
+        isEmailConfirmed: false,
+        isBanned: false,
+        isMfaRequired: false,
+        totpSecret: null,
+      };
+
+      (userRepository.findOne as jest.Mock).mockResolvedValue(mockUser);
+      (hashService.compareHash as jest.Mock).mockResolvedValue(true);
+
+      const signInData: SignInDto = {
+        login: 'testuser',
+        password: 'correctpassword',
+      };
+
+      const result = await userService.verifyUser(signInData);
+
+      expect(result).toEqual({
+        userId: mockUser.id.toString('hex'),
+        limits: TokenLimits.EMAIL_NOT_CONFIRMED,
+        mfa: { required: false, methods: [MfaMethods.EMAIL] },
+      });
     });
   });
 
   describe('isUserHasLimits', () => {
-    it('should return USER_BANNED if user is banned', async () => {
-      const userId = new Types.ObjectId().toString();
-      const mockUser = { isBanned: true, isEmailConfirmed: true };
+    it('should return null if user is not found', async () => {
+      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
 
-      mockUserModel.findById.mockReturnThis();
-      mockUserModel.lean.mockResolvedValue(mockUser);
+      const result = await userService.isUserHasLimits('123');
 
-      const result = await userService.isUserHasLimits(userId);
-
-      expect(result).toBe(TokenLimits.USER_BANNED);
+      expect(result).toBeNull();
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: Buffer.from('123', 'hex'), isDeleted: false },
+        select: ['isBanned', 'isEmailConfirmed'],
+      });
     });
 
-    it('should return EMAIL_NOT_CONFIRMED if email is not confirmed', async () => {
-      const userId = new Types.ObjectId().toString();
+    it('should return USER_BANNED if user is banned', async () => {
+      const mockUser = { isBanned: true, isEmailConfirmed: true };
+
+      (userRepository.findOne as jest.Mock).mockResolvedValue(mockUser);
+
+      const result = await userService.isUserHasLimits('123');
+
+      expect(result).toBe(TokenLimits.USER_BANNED);
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: Buffer.from('123', 'hex'), isDeleted: false },
+        select: ['isBanned', 'isEmailConfirmed'],
+      });
+    });
+
+    it("should return EMAIL_NOT_CONFIRMED if user's email is not confirmed", async () => {
       const mockUser = { isBanned: false, isEmailConfirmed: false };
 
-      mockUserModel.findById.mockReturnThis();
-      mockUserModel.lean.mockResolvedValue(mockUser);
+      (userRepository.findOne as jest.Mock).mockResolvedValue(mockUser);
 
-      const result = await userService.isUserHasLimits(userId);
+      const result = await userService.isUserHasLimits('123');
 
       expect(result).toBe(TokenLimits.EMAIL_NOT_CONFIRMED);
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: Buffer.from('123', 'hex'), isDeleted: false },
+        select: ['isBanned', 'isEmailConfirmed'],
+      });
     });
 
     it('should return DEFAULT if user has no limits', async () => {
-      const userId = new Types.ObjectId().toString();
       const mockUser = { isBanned: false, isEmailConfirmed: true };
 
-      mockUserModel.findById.mockReturnThis();
-      mockUserModel.lean.mockResolvedValue(mockUser);
+      (userRepository.findOne as jest.Mock).mockResolvedValue(mockUser);
 
-      const result = await userService.isUserHasLimits(userId);
+      const result = await userService.isUserHasLimits('123');
 
       expect(result).toBe(TokenLimits.DEFAULT);
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: Buffer.from('123', 'hex'), isDeleted: false },
+        select: ['isBanned', 'isEmailConfirmed'],
+      });
+    });
+  });
+
+  describe('getUserLimitsIfBecameRoot', () => {
+    let isUserHasLimits: jest.SpyInstance;
+
+    beforeEach(async () => {
+      isUserHasLimits = jest.spyOn(userService, 'isUserHasLimits');
     });
 
-    it('should return null if user is not found', async () => {
-      mockUserModel.findById.mockReturnThis();
-      mockUserModel.lean.mockResolvedValue(null);
+    it('should return null if isUserHasLimits returns null', async () => {
+      isUserHasLimits.mockResolvedValue(null);
 
-      const result = await userService.isUserHasLimits('nonexistentUserId');
+      const result = await userService.getUserLimitsIfBecameRoot('123');
 
       expect(result).toBeNull();
+      expect(isUserHasLimits).toHaveBeenCalledWith('123');
     });
 
-    it('should call findById with the correct projection', async () => {
-      const userId = new Types.ObjectId().toString();
-      const mockUser = { isBanned: true, isEmailConfirmed: true };
+    it('should return BANNED_ROOT if user is banned', async () => {
+      isUserHasLimits.mockResolvedValue(TokenLimits.USER_BANNED);
 
-      mockUserModel.findById.mockReturnThis();
-      mockUserModel.lean.mockResolvedValue(mockUser);
+      const result = await userService.getUserLimitsIfBecameRoot('123');
 
-      await userService.isUserHasLimits(userId);
+      expect(result).toBe(TokenLimits.BANNED_ROOT);
+      expect(isUserHasLimits).toHaveBeenCalledWith('123');
+    });
 
-      expect(mockUserModel.findById).toHaveBeenCalledWith(userId, {
-        isEmailConfirmed: 1,
-        isBanned: 1,
+    it('should return ROOT if user has no significant limits', async () => {
+      isUserHasLimits.mockResolvedValue(TokenLimits.DEFAULT);
+
+      const result = await userService.getUserLimitsIfBecameRoot('123');
+
+      expect(result).toBe(TokenLimits.ROOT);
+      expect(isUserHasLimits).toHaveBeenCalledWith('123');
+    });
+  });
+
+  describe('confirmEmailIfNotConfirmed', () => {
+    it('should return true if email confirmation is successful', async () => {
+      (userRepository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+
+      const result = await userService.confirmEmailIfNotConfirmed('123');
+
+      expect(result).toBe(true);
+      expect(userRepository.update).toHaveBeenCalledWith(
+        { id: Buffer.from('123', 'hex'), isEmailConfirmed: false },
+        { isEmailConfirmed: true },
+      );
+    });
+
+    it('should return false if email was already confirmed (no rows affected)', async () => {
+      (userRepository.update as jest.Mock).mockResolvedValue({ affected: 0 });
+
+      const result = await userService.confirmEmailIfNotConfirmed('123');
+
+      expect(result).toBe(false);
+      expect(userRepository.update).toHaveBeenCalledWith(
+        { id: Buffer.from('123', 'hex'), isEmailConfirmed: false },
+        { isEmailConfirmed: true },
+      );
+    });
+  });
+
+  describe('getUserMfaInfo', () => {
+    it('should throw an error if the user is not found', async () => {
+      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
+
+      await expect(userService.getUserMfaInfo('123')).rejects.toThrow(
+        Errors.USER_NOT_FOUND.message,
+      );
+
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: Buffer.from('123', 'hex'), isDeleted: false },
+        select: ['isMfaRequired', 'totpSecret'],
       });
+    });
+
+    it('should return MFA info when user has MFA disabled', async () => {
+      const mockUser = { isMfaRequired: false, totpSecret: null };
+
+      (userRepository.findOne as jest.Mock).mockResolvedValue(mockUser);
+
+      const result = await userService.getUserMfaInfo('123');
+
+      expect(result).toEqual({
+        required: false,
+        methods: [MfaMethods.EMAIL],
+      });
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: Buffer.from('123', 'hex'), isDeleted: false },
+        select: ['isMfaRequired', 'totpSecret'],
+      });
+    });
+
+    it('should return MFA info when user has MFA enabled and TOTP set', async () => {
+      const mockUser = { isMfaRequired: true, totpSecret: 'secret' };
+
+      (userRepository.findOne as jest.Mock).mockResolvedValue(mockUser);
+
+      const result = await userService.getUserMfaInfo('123');
+
+      expect(result).toEqual({
+        required: true,
+        methods: [MfaMethods.EMAIL, MfaMethods.TOTP],
+      });
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: Buffer.from('123', 'hex'), isDeleted: false },
+        select: ['isMfaRequired', 'totpSecret'],
+      });
+    });
+  });
+
+  describe('changeMfaRequired', () => {
+    it('should successfully change MFA required status', async () => {
+      (userRepository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+
+      await expect(
+        userService.changeMfaRequired('123', true),
+      ).resolves.not.toThrow();
+
+      expect(userRepository.update).toHaveBeenCalledWith(
+        {
+          id: Buffer.from('123', 'hex'),
+          isMfaRequired: true,
+          isDeleted: false,
+        },
+        { isMfaRequired: true },
+      );
+    });
+
+    it('should throw an error if no rows were affected (MFA status not changed)', async () => {
+      (userRepository.update as jest.Mock).mockResolvedValue({ affected: 0 });
+
+      await expect(userService.changeMfaRequired('123', true)).rejects.toThrow(
+        Errors.NOT_MODIFIED.message,
+      );
+
+      expect(userRepository.update).toHaveBeenCalledWith(
+        {
+          id: Buffer.from('123', 'hex'),
+          isMfaRequired: true,
+          isDeleted: false,
+        },
+        { isMfaRequired: true },
+      );
     });
   });
 
   describe('disableTotpMfa', () => {
-    it('should set totpSecret to null for a given user', async () => {
-      const userId = new Types.ObjectId().toString();
+    it('should disable TOTP MFA by setting totpSecret to null', async () => {
+      (userRepository.update as jest.Mock).mockResolvedValue({ affected: 1 });
 
-      await userService.disableTotpMfa(userId);
+      await expect(userService.disableTotpMfa('123')).resolves.not.toThrow();
 
-      expect(mockUserModel.findByIdAndUpdate).toHaveBeenCalledWith(userId, {
-        $set: { totpSecret: null },
-      });
+      expect(userRepository.update).toHaveBeenCalledWith(
+        { id: Buffer.from('123', 'hex'), isDeleted: false },
+        { totpSecret: null },
+      );
     });
   });
 
   describe('setTotpSecret', () => {
-    it('should set totpSecret for a given user', async () => {
-      const userId = new Types.ObjectId().toString();
-      const secret = 'newTotpSecret';
+    it('should set the TOTP secret for a user', async () => {
+      (userRepository.update as jest.Mock).mockResolvedValue({ affected: 1 });
 
-      await userService.setTotpSecret(userId, secret);
+      const totpSecret = 'someTotpSecret';
 
-      expect(mockUserModel.findByIdAndUpdate).toHaveBeenCalledWith(userId, {
-        $set: { totpSecret: secret },
-      });
+      await expect(
+        userService.setTotpSecret('123', totpSecret),
+      ).resolves.not.toThrow();
+
+      expect(userRepository.update).toHaveBeenCalledWith(
+        { id: Buffer.from('123', 'hex'), isDeleted: false },
+        { totpSecret },
+      );
     });
   });
 
   describe('getTotpSecret', () => {
-    it('should return the totpSecret for a valid user', async () => {
-      const userId = new Types.ObjectId().toString();
-      const mockUser = { totpSecret: 'secret' };
+    it('should throw an error if the user is not found', async () => {
+      (userRepository.findOne as jest.Mock).mockResolvedValue(null);
 
-      mockUserModel.findById.mockResolvedValue(mockUser);
+      await expect(userService.getTotpSecret('123')).rejects.toThrow(
+        Errors.USER_NOT_FOUND.message,
+      );
 
-      const result = await userService.getTotpSecret(userId);
-
-      expect(mockUserModel.findById).toHaveBeenCalledWith(userId, {
-        totpSecret: 1,
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: Buffer.from('123', 'hex'), isDeleted: false },
+        select: ['totpSecret'],
       });
-      expect(result).toEqual('secret');
     });
 
-    it('should return null if totpSecret is not set', async () => {
-      const userId = new Types.ObjectId().toString();
+    it('should return the TOTP secret if it exists', async () => {
+      const mockUser = { totpSecret: 'secret123' };
+
+      (userRepository.findOne as jest.Mock).mockResolvedValue(mockUser);
+
+      const result = await userService.getTotpSecret('123');
+
+      expect(result).toBe('secret123');
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: Buffer.from('123', 'hex'), isDeleted: false },
+        select: ['totpSecret'],
+      });
+    });
+
+    it('should return null if the TOTP secret is not set', async () => {
       const mockUser = { totpSecret: null };
 
-      mockUserModel.findById.mockResolvedValue(mockUser);
+      (userRepository.findOne as jest.Mock).mockResolvedValue(mockUser);
 
-      const result = await userService.getTotpSecret(userId);
+      const result = await userService.getTotpSecret('123');
 
       expect(result).toBeNull();
-    });
-
-    it('should throw an error if user is not found', async () => {
-      mockUserModel.findById.mockResolvedValue(null);
-
-      await expect(
-        userService.getTotpSecret('nonexistentUserId'),
-      ).rejects.toThrow('User not found');
+      expect(userRepository.findOne).toHaveBeenCalledWith({
+        where: { id: Buffer.from('123', 'hex'), isDeleted: false },
+        select: ['totpSecret'],
+      });
     });
   });
 });

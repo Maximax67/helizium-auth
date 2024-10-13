@@ -13,6 +13,7 @@ import {
 import { SignInDto, SignUpDto } from '../../common/dtos';
 import { getJwks } from '../../common/helpers';
 import { VerifiedUser } from '../users/interfaces';
+import { Errors } from '../../common/constants';
 
 jest.mock('../../common/helpers', () => ({
   getJwks: jest.fn(),
@@ -288,7 +289,7 @@ describe('AuthService', () => {
 
       await expect(
         authService.sign(signInDto, {} as FastifyReply),
-      ).rejects.toThrow('inv cred');
+      ).rejects.toThrow(Errors.INVALID_CREDENTIALS.message);
     });
   });
 
@@ -351,7 +352,9 @@ describe('AuthService', () => {
       const res = {} as FastifyReply;
       jest.spyOn(cookieService, 'get').mockReturnValue(null);
 
-      await expect(authService.refresh(req, res)).rejects.toThrow('t inv');
+      await expect(authService.refresh(req, res)).rejects.toThrow(
+        Errors.REFRESH_TOKEN_INVALID_OR_MISSING.message,
+      );
     });
   });
 

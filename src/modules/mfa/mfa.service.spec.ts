@@ -13,6 +13,7 @@ import { ConfirmEmailDto } from './dtos';
 import { EmailCookieTokenStatuses } from './enums';
 import { TokenLimits, TokenStatuses, CookieNames } from '../../common/enums';
 import { config } from '../../config';
+import { Errors } from '../../common/constants';
 
 jest.mock('nanoid');
 
@@ -414,7 +415,7 @@ describe('MfaService', () => {
 
       await expect(
         mfaService.cancelEmailConfirmation(mockRequest, mockResponse, userId),
-      ).rejects.toThrow('Cookie token not in request');
+      ).rejects.toThrow(Errors.COOKIE_TOKEN_MISSING.message);
 
       expect(cookieService.get).toHaveBeenCalledWith(
         mockRequest,
@@ -436,7 +437,7 @@ describe('MfaService', () => {
 
       await expect(
         mfaService.cancelEmailConfirmation(mockRequest, mockResponse, userId),
-      ).rejects.toThrow('Cookie token is invalid');
+      ).rejects.toThrow(Errors.EMAIL_TOKEN_INVALID.message);
 
       expect(redisService.get).toHaveBeenCalledWith('redisKey');
     });
@@ -461,10 +462,7 @@ describe('MfaService', () => {
 
       await mfaService.sendEmailCode(mockReq, mockRes, userId, limits);
 
-      expect(userService.getUserEmailAndUsername).toHaveBeenCalledWith(userId, {
-        email: 1,
-        username: 1,
-      });
+      expect(userService.getUserEmailAndUsername).toHaveBeenCalledWith(userId);
       expect(emailOtpService.sendOtp).toHaveBeenCalledWith(
         userId,
         cookieToken,
@@ -512,7 +510,7 @@ describe('MfaService', () => {
 
       await expect(
         mfaService.sendEmailCode(mockReq, mockRes, userId, limits),
-      ).rejects.toThrow('User not exists');
+      ).rejects.toThrow(Errors.USER_NOT_FOUND.message);
     });
   });
 
@@ -597,7 +595,7 @@ describe('MfaService', () => {
 
       await expect(
         mfaService.confirmEmailCode(confirmEmailDto, mockReq, mockRes),
-      ).rejects.toThrow('Invalid code/link');
+      ).rejects.toThrow(Errors.EMAIL_CONFIRMATION_INVALID.message);
     });
 
     it('should throw an error if the token is invalid', async () => {
@@ -606,7 +604,7 @@ describe('MfaService', () => {
 
       await expect(
         mfaService.confirmEmailCode(confirmEmailDto, mockReq, mockRes),
-      ).rejects.toThrow('Invalid code/link');
+      ).rejects.toThrow(Errors.EMAIL_CONFIRMATION_INVALID.message);
     });
 
     it('should handle the case where email confirmation is already confirmed', async () => {
@@ -775,7 +773,7 @@ describe('MfaService', () => {
 
       await expect(
         mfaService.confirmTotp(userId, limits, jti, token),
-      ).rejects.toThrow('invalid totp');
+      ).rejects.toThrow(Errors.INVALID_TOTP.message);
 
       expect(totpAuthService.validateTotp).toHaveBeenCalledWith(
         userId,

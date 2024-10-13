@@ -2,19 +2,18 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TokenService } from './token.service';
 import { RedisService } from '../redis/redis.service';
 import { ApiToken } from './entities';
-import { nanoid } from 'nanoid';
 import * as jwt from 'jsonwebtoken';
 import { getKidMapping } from '../../common/helpers';
 import { TokenTypes, TokenLimits, TokenStatuses } from '../../common/enums';
 import { config } from '../../config';
-
-// TODO FIX, switch to typeorm
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-type Model<T> = any;
-const Model: any = {};
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { nanoid } from 'nanoid';
+import { ApiTokenDto } from './dtos';
+import { GenerateTokenPayload } from './interfaces';
+import { Errors } from '../../common/constants';
 
 jest.mock('axios');
-
 jest.mock('nanoid');
 jest.mock('jsonwebtoken');
 jest.mock('../../common/helpers', () => ({
@@ -24,7 +23,7 @@ jest.mock('../../common/helpers', () => ({
 describe('TokenService', () => {
   let service: TokenService;
   let redisService: RedisService;
-  let apiTokenModel: Model<ApiToken>;
+  let apiTokensRepository: Repository<ApiToken>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -42,13 +41,13 @@ describe('TokenService', () => {
           },
         },
         {
-          provide: '1234', // TODO FIX
+          provide: getRepositoryToken(ApiToken),
           useValue: {
-            create: jest.fn(),
+            createQueryBuilder: jest.fn(),
+            insert: jest.fn(),
             findOne: jest.fn(),
-            find: jest.fn(),
-            findOneAndDelete: jest.fn(),
-            deleteMany: jest.fn(),
+            findBy: jest.fn(),
+            delete: jest.fn(),
           },
         },
       ],
@@ -56,7 +55,9 @@ describe('TokenService', () => {
 
     service = module.get<TokenService>(TokenService);
     redisService = module.get<RedisService>(RedisService);
-    apiTokenModel = module.get<Model<ApiToken>>('123'); // TODO FIX
+    apiTokensRepository = module.get<Repository<ApiToken>>(
+      getRepositoryToken(ApiToken),
+    );
   });
 
   afterEach(() => {
@@ -76,6 +77,11 @@ describe('TokenService', () => {
     it('should define validateToken()', () => {
       expect(service.validateToken).toBeDefined();
       expect(typeof service.validateToken).toBe('function');
+    });
+
+    it('should define validateApiToken()', () => {
+      expect(service.validateApiToken).toBeDefined();
+      expect(typeof service.validateApiToken).toBe('function');
     });
 
     it('should define validateRefreshToken()', () => {
@@ -113,6 +119,11 @@ describe('TokenService', () => {
       expect(typeof service.revokeAllUserTokens).toBe('function');
     });
 
+    it('should define revokeAllUserApiTokens()', () => {
+      expect(service.revokeAllUserApiTokens).toBeDefined();
+      expect(typeof service.revokeAllUserApiTokens).toBe('function');
+    });
+
     it('should define revokeUserTokenByJti()', () => {
       expect(service.revokeUserTokenByJti).toBeDefined();
       expect(typeof service.revokeUserTokenByJti).toBe('function');
@@ -123,118 +134,92 @@ describe('TokenService', () => {
       expect(typeof service.revokeApiToken).toBe('function');
     });
 
+    it('should define generateTokenPair()', () => {
+      expect(service.generateTokenPair).toBeDefined();
+      expect(typeof service.generateTokenPair).toBe('function');
+    });
+
     it('should define getTokenRedisStatus()', () => {
       expect(service.getTokenRedisStatus).toBeDefined();
       expect(typeof service.getTokenRedisStatus).toBe('function');
     });
   });
 
-  describe('generateApiToken', () => {
-    const mockUserId = 'user123';
-    const mockTitle = 'Test API Token';
-    const mockWriteAccess = true;
-    const mockJti = 'mocked-jti';
-    const mockKid = 'mocked-kid';
-    const mockToken = 'signed-token';
+  describe('generateTokenPair', () => {
+    it('should generate both access and refresh tokens', async () => {
+      const payload: GenerateTokenPayload = {
+        userId: 'user-id',
+        email: 'test@example.com',
+      };
 
-    beforeEach(() => {
+      const mockJti = 'test-jti';
       (nanoid as jest.Mock).mockReturnValue(mockJti);
 
-      (getKidMapping as jest.Mock).mockResolvedValue({
-        API: mockKid,
-      });
+      const mockAccessToken = {
+        token: 'access-token',
+        jti: mockJti,
+        userId: 'user-id',
+        type: TokenTypes.ACCESS,
+        limits: TokenLimits.DEFAULT,
+        iat: 1620000000,
+        exp: 1620003600,
+      };
+      const mockRefreshToken = {
+        token: 'refresh-token',
+        jti: mockJti,
+        userId: 'user-id',
+        type: TokenTypes.REFRESH,
+        limits: TokenLimits.DEFAULT,
+        iat: 1620000000,
+        exp: 1620007200,
+      };
 
-      (jwt.sign as jest.Mock).mockReturnValue(mockToken);
-    });
+      jest
+        .spyOn<any, any>(service, 'generateAccessToken')
+        .mockResolvedValue(mockAccessToken);
+      jest
+        .spyOn<any, any>(service, 'generateRefreshToken')
+        .mockResolvedValue(mockRefreshToken);
 
-    it('should generate an API token and store it in MongoDB', async () => {
-      const result = await service.generateApiToken(
-        mockUserId,
-        mockTitle,
-        mockWriteAccess,
-      );
+      const result = await service.generateTokenPair(payload);
 
       expect(nanoid).toHaveBeenCalled();
-      expect(getKidMapping).toHaveBeenCalled();
-
-      expect(jwt.sign).toHaveBeenCalledWith(
-        {
-          userId: mockUserId,
-          jti: mockJti,
-          limits: TokenLimits.DEFAULT,
-          type: TokenTypes.API,
-        },
-        expect.any(String),
-        {
-          algorithm: 'RS256',
-          keyid: mockKid,
-        },
-      );
-
-      expect(apiTokenModel.create).toHaveBeenCalledWith({
-        userId: mockUserId,
+      expect(service['generateAccessToken']).toHaveBeenCalledWith({
+        limits: TokenLimits.DEFAULT,
+        userId: 'user-id',
+        email: 'test@example.com',
         jti: mockJti,
-        title: mockTitle,
-        writeAccess: mockWriteAccess,
+      });
+      expect(service['generateRefreshToken']).toHaveBeenCalledWith({
+        limits: TokenLimits.DEFAULT,
+        userId: 'user-id',
+        email: 'test@example.com',
+        jti: mockJti,
       });
 
-      expect(result).toBe(mockToken);
-    });
-
-    it('should generate an API token with read-only access if writeAccess is false', async () => {
-      const readOnlyAccess = false;
-
-      const result = await service.generateApiToken(
-        mockUserId,
-        mockTitle,
-        readOnlyAccess,
-      );
-
-      expect(jwt.sign).toHaveBeenCalledWith(
-        {
-          userId: mockUserId,
-          jti: mockJti,
-          limits: TokenLimits.READ_ONLY,
-          type: TokenTypes.API,
-        },
-        expect.any(String),
-        {
-          algorithm: 'RS256',
-          keyid: mockKid,
-        },
-      );
-
-      expect(apiTokenModel.create).toHaveBeenCalledWith({
-        userId: mockUserId,
-        jti: mockJti,
-        title: mockTitle,
-        writeAccess: readOnlyAccess,
+      expect(result).toEqual({
+        accessToken: mockAccessToken,
+        refreshToken: mockRefreshToken,
       });
-
-      expect(result).toBe(mockToken);
-    });
-
-    it('should handle errors gracefully when creating API token', async () => {
-      (apiTokenModel.create as jest.Mock).mockRejectedValue(
-        new Error('MongoDB Error'),
-      );
-
-      await expect(
-        service.generateApiToken(mockUserId, mockTitle, mockWriteAccess),
-      ).rejects.toThrow('MongoDB Error');
     });
   });
 
   describe('generateApiToken', () => {
     const mockUserId = 'user123';
     const mockTitle = 'Test API Token';
-    const mockWriteAccess = true;
     const mockJti = 'mocked-jti';
     const mockKid = 'mocked-kid';
     const mockToken = 'signed-token';
 
     beforeEach(() => {
-      (nanoid as jest.Mock).mockReturnValue(mockJti);
+      jest.spyOn(apiTokensRepository, 'createQueryBuilder').mockReturnValue({
+        insert: jest.fn().mockReturnThis(),
+        values: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({
+          raw: [{ jti: mockJti }],
+        }),
+      } as any);
 
       (getKidMapping as jest.Mock).mockResolvedValue({
         API: mockKid,
@@ -243,47 +228,35 @@ describe('TokenService', () => {
       (jwt.sign as jest.Mock).mockReturnValue(mockToken);
     });
 
-    it('should generate an API token and store it in MongoDB', async () => {
+    it('should generate an API token successfully', async () => {
       const result = await service.generateApiToken(
         mockUserId,
         mockTitle,
-        mockWriteAccess,
+        true,
       );
-
-      expect(nanoid).toHaveBeenCalled();
-      expect(getKidMapping).toHaveBeenCalled();
 
       expect(jwt.sign).toHaveBeenCalledWith(
         {
           userId: mockUserId,
           jti: mockJti,
           limits: TokenLimits.DEFAULT,
-          type: TokenTypes.API,
+          type: 'API',
         },
-        expect.any(String),
+        config.keys.jwtApiPrivateKey,
         {
           algorithm: 'RS256',
           keyid: mockKid,
         },
       );
 
-      expect(apiTokenModel.create).toHaveBeenCalledWith({
-        userId: mockUserId,
-        jti: mockJti,
-        title: mockTitle,
-        writeAccess: mockWriteAccess,
-      });
-
       expect(result).toBe(mockToken);
     });
 
-    it('should generate an API token with read-only access if writeAccess is false', async () => {
-      const readOnlyAccess = false;
-
+    it('should generate an API token successfully', async () => {
       const result = await service.generateApiToken(
         mockUserId,
         mockTitle,
-        readOnlyAccess,
+        false,
       );
 
       expect(jwt.sign).toHaveBeenCalledWith(
@@ -291,176 +264,214 @@ describe('TokenService', () => {
           userId: mockUserId,
           jti: mockJti,
           limits: TokenLimits.READ_ONLY,
-          type: TokenTypes.API,
+          type: 'API',
         },
-        expect.any(String),
+        config.keys.jwtApiPrivateKey,
         {
           algorithm: 'RS256',
           keyid: mockKid,
         },
       );
 
-      expect(apiTokenModel.create).toHaveBeenCalledWith({
-        userId: mockUserId,
-        jti: mockJti,
-        title: mockTitle,
-        writeAccess: readOnlyAccess,
-      });
-
       expect(result).toBe(mockToken);
-    });
-
-    it('should handle errors gracefully when creating API token', async () => {
-      (apiTokenModel.create as jest.Mock).mockRejectedValue(
-        new Error('MongoDB Error'),
-      );
-
-      await expect(
-        service.generateApiToken(mockUserId, mockTitle, mockWriteAccess),
-      ).rejects.toThrow('MongoDB Error');
     });
   });
 
   describe('validateToken', () => {
-    const mockAccessToken = 'mocked-access-token';
-    const mockApiToken = 'mocked-api-token';
-    const mockUserId = 'user123';
-    const mockJti = 'mocked-jti';
+    it('should validate a valid access token', async () => {
+      const token = 'validAccessToken';
+      const decodedPayload = {
+        type: TokenTypes.ACCESS,
+        iat: 1620000000,
+        exp: 1620003600,
+        jti: 'test-jti',
+        userId: 'user-id',
+        limits: TokenLimits.DEFAULT,
+      };
 
-    const mockAccessPayload = {
-      userId: mockUserId,
-      jti: mockJti,
-      type: TokenTypes.ACCESS,
-      limits: TokenLimits.DEFAULT,
-      iat: Math.floor(Date.now() / 1000) - 60,
-      exp: Math.floor(Date.now() / 1000) + 60,
-    };
-
-    const mockApiPayload = {
-      userId: mockUserId,
-      jti: mockJti,
-      type: TokenTypes.API,
-      limits: TokenLimits.READ_ONLY,
-      iat: Math.floor(Date.now() / 1000) - 60,
-    };
-
-    beforeEach(() => {
-      jest.clearAllMocks();
-    });
-
-    it('should validate a valid access token and return decoded info with active status', async () => {
-      (jwt.verify as jest.Mock).mockReturnValue(mockAccessPayload);
-
-      jest
+      (jwt.verify as jest.Mock).mockReturnValue(decodedPayload);
+      const getTokenRedisStatusSpy = jest
         .spyOn(service, 'getTokenRedisStatus')
         .mockResolvedValue(TokenStatuses.ACTIVE);
 
-      const result = await service.validateToken(mockAccessToken, false);
+      const result = await service.validateToken(token, false);
 
       expect(jwt.verify).toHaveBeenCalledWith(
-        mockAccessToken,
+        token,
         config.keys.jwtAccessPublicKey,
       );
-
-      expect(service.getTokenRedisStatus).toHaveBeenCalledWith(
-        mockUserId,
-        mockJti,
+      expect(getTokenRedisStatusSpy).toHaveBeenCalledWith(
+        'user-id',
+        'test-jti',
       );
-
       expect(result).toEqual({
-        decoded: mockAccessPayload,
+        decoded: decodedPayload,
         status: TokenStatuses.ACTIVE,
       });
     });
 
-    it('should validate a valid API token and return decoded info with active status', async () => {
-      (jwt.verify as jest.Mock).mockReturnValue(mockApiPayload);
-
-      jest
-        .spyOn(apiTokenModel, 'findOne')
-        .mockResolvedValue({ writeAccess: false });
-
-      const result = await service.validateToken(mockApiToken, true);
-
-      expect(jwt.verify).toHaveBeenCalledWith(
-        mockApiToken,
-        config.keys.jwtApiPublicKey,
-      );
-
-      expect(apiTokenModel.findOne).toHaveBeenCalledWith(
-        { userId: mockUserId, jti: mockJti },
-        { writeAccess: 1 },
-      );
-
-      expect(result).toEqual({
-        decoded: mockApiPayload,
-        status: TokenStatuses.ACTIVE,
-      });
-    });
-
-    it('should return null if token is invalid', async () => {
-      (jwt.verify as jest.Mock).mockImplementation(() => {
-        throw new Error('Invalid token');
-      });
-
-      const result = await service.validateToken(mockAccessToken, false);
-
-      expect(jwt.verify).toHaveBeenCalledWith(
-        mockAccessToken,
-        config.keys.jwtAccessPublicKey,
-      );
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null if Redis status is missing or invalid for access token', async () => {
-      (jwt.verify as jest.Mock).mockReturnValue(mockAccessPayload);
-
-      jest.spyOn(service, 'getTokenRedisStatus').mockResolvedValue(null);
-
-      const result = await service.validateToken(mockAccessToken, false);
-
-      expect(service.getTokenRedisStatus).toHaveBeenCalledWith(
-        mockUserId,
-        mockJti,
-      );
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null if API token write access does not match limits', async () => {
-      (jwt.verify as jest.Mock).mockReturnValue(mockApiPayload);
-
-      jest
-        .spyOn(apiTokenModel, 'findOne')
-        .mockResolvedValue({ writeAccess: true });
-
-      const result = await service.validateToken(mockApiToken, true);
-
-      expect(apiTokenModel.findOne).toHaveBeenCalledWith(
-        { userId: mockUserId, jti: mockJti },
-        { writeAccess: 1 },
-      );
-
-      expect(result).toBeNull();
-    });
-
-    it('should handle expired access tokens by returning null', async () => {
-      const expiredAccessPayload = {
-        ...mockAccessPayload,
-        exp: Math.floor(Date.now() / 1000) - 60,
+    it('should return null if the access token is invalid (no redis status)', async () => {
+      const token = 'validAccessToken';
+      const decodedPayload = {
+        type: TokenTypes.ACCESS,
+        iat: 1620000000,
+        exp: 1620003600,
+        jti: 'test-jti',
+        userId: 'user-id',
+        limits: TokenLimits.DEFAULT,
       };
 
-      (jwt.verify as jest.Mock).mockReturnValue(expiredAccessPayload);
+      (jwt.verify as jest.Mock).mockReturnValue(decodedPayload);
+      const getTokenRedisStatusSpy = jest
+        .spyOn(service, 'getTokenRedisStatus')
+        .mockResolvedValue(null);
 
-      const result = await service.validateToken(mockAccessToken, false);
+      const result = await service.validateToken(token, false);
 
       expect(jwt.verify).toHaveBeenCalledWith(
-        mockAccessToken,
+        token,
         config.keys.jwtAccessPublicKey,
       );
-
+      expect(getTokenRedisStatusSpy).toHaveBeenCalledWith(
+        'user-id',
+        'test-jti',
+      );
       expect(result).toBeNull();
+    });
+
+    it('should validate a valid API token', async () => {
+      const token = 'validApiToken';
+      const decodedPayload = {
+        type: TokenTypes.API,
+        iat: 1620000000,
+        jti: 'test-jti',
+        userId: 'user-id',
+        limits: TokenLimits.DEFAULT,
+      };
+
+      (jwt.verify as jest.Mock).mockReturnValue(decodedPayload);
+
+      jest.spyOn(service, 'validateApiToken').mockResolvedValue(true);
+
+      const result = await service.validateToken(token, true);
+
+      expect(jwt.verify).toHaveBeenCalledWith(
+        token,
+        config.keys.jwtApiPublicKey,
+      );
+      expect(service.validateApiToken).toHaveBeenCalledWith('test-jti');
+      expect(result).toEqual({
+        decoded: decodedPayload,
+        status: TokenStatuses.ACTIVE,
+      });
+    });
+
+    it('should return null if the token is invalid (no write access)', async () => {
+      const token = 'validApiToken';
+      const decodedPayload = {
+        type: TokenTypes.API,
+        iat: 1620000000,
+        jti: 'test-jti',
+        userId: 'user-id',
+        limits: TokenLimits.DEFAULT,
+      };
+
+      (jwt.verify as jest.Mock).mockReturnValue(decodedPayload);
+
+      jest.spyOn(service, 'validateApiToken').mockResolvedValue(false);
+
+      const result = await service.validateToken(token, true);
+
+      expect(jwt.verify).toHaveBeenCalledWith(
+        token,
+        config.keys.jwtApiPublicKey,
+      );
+      expect(service.validateApiToken).toHaveBeenCalledWith('test-jti');
+      expect(result).toBeNull();
+    });
+
+    it('should return null if the token signature is invalid', async () => {
+      const token = 'invalidToken';
+
+      (jwt.verify as jest.Mock).mockImplementation(() => {
+        throw new Error('invalid signature');
+      });
+
+      const result = await service.validateToken(token, false);
+
+      expect(jwt.verify).toHaveBeenCalledWith(
+        token,
+        config.keys.jwtAccessPublicKey,
+      );
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('validateApiToken', () => {
+    it('should validate API token from the database if cacheTtl is not set', async () => {
+      (service as any).validateApiTokenInDatabase = jest
+        .fn()
+        .mockResolvedValue(true);
+
+      const result = await service.validateApiToken('test-jti');
+
+      expect(service['validateApiTokenInDatabase']).toHaveBeenCalledWith(
+        'test-jti',
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should return true if the token is found in Redis cache', async () => {
+      (redisService.get as jest.Mock).mockResolvedValue('1');
+
+      const result = await service.validateApiToken('test-jti');
+
+      expect(redisService.get).toHaveBeenCalledWith(
+        service['getApiTokenCacheStorageKey']('test-jti'),
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should validate the token in the database, cache it, and return true if the token is valid', async () => {
+      (redisService.get as jest.Mock).mockResolvedValue(null);
+
+      (service as any).validateApiTokenInDatabase = jest
+        .fn()
+        .mockResolvedValue(true);
+
+      const result = await service.validateApiToken('test-jti');
+
+      expect(redisService.get).toHaveBeenCalledWith(
+        service['getApiTokenCacheStorageKey']('test-jti'),
+      );
+      expect(service['validateApiTokenInDatabase']).toHaveBeenCalledWith(
+        'test-jti',
+      );
+      expect(redisService.set).toHaveBeenCalledWith(
+        service['getApiTokenCacheStorageKey']('test-jti'),
+        '1',
+        config.security.apiTokensJtiCacheTtl,
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should return false if the token is not found in Redis or the database', async () => {
+      (redisService.get as jest.Mock).mockResolvedValue(null);
+
+      (service as any).validateApiTokenInDatabase = jest
+        .fn()
+        .mockResolvedValue(false);
+
+      const result = await service.validateApiToken('test-jti');
+
+      expect(redisService.get).toHaveBeenCalledWith(
+        service['getApiTokenCacheStorageKey']('test-jti'),
+      );
+      expect(service['validateApiTokenInDatabase']).toHaveBeenCalledWith(
+        'test-jti',
+      );
+      expect(redisService.set).not.toHaveBeenCalled();
+      expect(result).toBe(false);
     });
   });
 
@@ -572,32 +583,43 @@ describe('TokenService', () => {
 
   describe('getUserApiTokens', () => {
     const mockUserId = 'user123';
-    const mockApiTokens = [
-      { _id: 'token1', userId: mockUserId, title: 'Token 1' },
-      { _id: 'token2', userId: mockUserId, title: 'Token 2' },
+    const mockApiTokens: ApiTokenDto[] = [
+      {
+        jti: 'token1',
+        title: 'Token 1',
+        writeAccess: true,
+        createdAt: new Date(),
+      },
+      {
+        jti: 'token2',
+        title: 'Token 2',
+        writeAccess: false,
+        createdAt: new Date(),
+      },
     ];
 
     it('should return a list of API tokens for a user', async () => {
-      jest.spyOn(apiTokenModel, 'find').mockReturnValue({
-        lean: jest.fn().mockResolvedValue(mockApiTokens),
-      } as any);
-
+      jest
+        .spyOn(apiTokensRepository, 'findBy')
+        .mockResolvedValue(mockApiTokens as ApiToken[]);
       const result = await service.getUserApiTokens(mockUserId);
 
-      expect(apiTokenModel.find).toHaveBeenCalledWith({ userId: mockUserId });
+      expect(apiTokensRepository.findBy).toHaveBeenCalledWith({
+        userId: Buffer.from(mockUserId, 'hex'),
+      });
 
-      expect(result).toEqual([
-        { ...mockApiTokens[0], id: 'token1' },
-        { ...mockApiTokens[1], id: 'token2' },
-      ]);
+      expect(result).toEqual(mockApiTokens);
     });
 
     it('should return an empty array if no tokens are found', async () => {
-      jest.spyOn(apiTokenModel, 'find').mockReturnValue({
-        lean: jest.fn().mockResolvedValue([]),
-      } as any);
-
+      jest
+        .spyOn(apiTokensRepository, 'findBy')
+        .mockResolvedValue([] as ApiToken[]);
       const result = await service.getUserApiTokens(mockUserId);
+
+      expect(apiTokensRepository.findBy).toHaveBeenCalledWith({
+        userId: Buffer.from(mockUserId, 'hex'),
+      });
 
       expect(result).toEqual([]);
     });
@@ -605,36 +627,37 @@ describe('TokenService', () => {
 
   describe('getUserApiToken', () => {
     const mockUserId = 'user123';
-    const mockTokenId = 'token1';
-    const mockApiToken = {
-      _id: mockTokenId,
-      userId: mockUserId,
-      title: 'Token 1',
+    const mockJti = 'token1';
+    const mockApiToken: ApiTokenDto = {
+      jti: 'token2',
+      title: 'Token 2',
+      writeAccess: false,
+      createdAt: new Date(),
     };
 
     it('should return a specific API token if it exists', async () => {
-      jest.spyOn(apiTokenModel, 'findOne').mockReturnValue({
-        lean: jest.fn().mockResolvedValue(mockApiToken),
-      } as any);
+      jest
+        .spyOn(apiTokensRepository, 'findOne')
+        .mockResolvedValue(mockApiToken as ApiToken);
 
-      const result = await service.getUserApiToken(mockUserId, mockTokenId);
+      const result = await service.getUserApiToken(mockUserId, mockJti);
 
-      expect(apiTokenModel.findOne).toHaveBeenCalledWith({
-        _id: mockTokenId,
-        userId: mockUserId,
+      expect(apiTokensRepository.findOne).toHaveBeenCalledWith({
+        where: { jti: mockJti, userId: Buffer.from(mockUserId, 'hex') },
       });
-
-      expect(result).toEqual({ ...mockApiToken, id: 'token1' });
+      expect(result).toEqual(mockApiToken);
     });
 
-    it('should throw an error if the API token is not found', async () => {
-      jest.spyOn(apiTokenModel, 'findOne').mockReturnValue({
-        lean: jest.fn().mockResolvedValue(null),
-      } as any);
+    it('should throw an error when token is not found', async () => {
+      jest.spyOn(apiTokensRepository, 'findOne').mockResolvedValue(null);
 
       await expect(
-        service.getUserApiToken(mockUserId, mockTokenId),
-      ).rejects.toThrow('Not found api token');
+        service.getUserApiToken(mockUserId, mockJti),
+      ).rejects.toThrow(Errors.API_TOKEN_NOT_FOUND.message);
+
+      expect(apiTokensRepository.findOne).toHaveBeenCalledWith({
+        where: { jti: mockJti, userId: Buffer.from(mockUserId, 'hex') },
+      });
     });
   });
 
@@ -875,6 +898,156 @@ describe('TokenService', () => {
     });
   });
 
+  describe('revokeAllUserApiTokens', () => {
+    let mockQueryBuilder: any;
+
+    beforeEach(() => {
+      mockQueryBuilder = {
+        delete: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
+        useTransaction: jest.fn().mockReturnThis(),
+        execute: jest.fn(),
+      };
+
+      jest
+        .spyOn(apiTokensRepository, 'createQueryBuilder')
+        .mockReturnValue(mockQueryBuilder);
+    });
+
+    it('should revoke all API tokens and delete them from Redis cache if cache TTL is set', async () => {
+      const userId = 'user123';
+      const tokens = [{ jti: 'token1' }, { jti: 'token2' }];
+
+      (
+        apiTokensRepository.createQueryBuilder().delete().where as jest.Mock
+      ).mockReturnValue({
+        returning: jest.fn().mockReturnThis(),
+        useTransaction: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({
+          raw: tokens,
+        }),
+      });
+
+      config.security.apiTokensJtiCacheTtl = 3600;
+
+      const redisDeleteManySpy = jest
+        .spyOn(service['redisService'], 'deleteMany')
+        .mockResolvedValue(undefined);
+
+      const revokeForApiGatewaySpy = jest
+        .spyOn(service, 'revokeForApiGateway')
+        .mockResolvedValue(undefined);
+
+      const result = await service.revokeAllUserApiTokens(userId);
+
+      const expectedRedisKeys = tokens.map((token) =>
+        service['getApiTokenCacheStorageKey'](token.jti),
+      );
+
+      expect(redisDeleteManySpy).toHaveBeenCalledWith(expectedRedisKeys); // Ensure Redis deleteMany is called with correct keys
+      expect(revokeForApiGatewaySpy).toHaveBeenCalledWith(
+        tokens.map((token) => token.jti),
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should revoke all API tokens without Redis cache deletion when TTL is not set', async () => {
+      const userId = 'user123';
+      const tokens = [{ jti: 'token1' }, { jti: 'token2' }];
+
+      (
+        apiTokensRepository.createQueryBuilder().delete().where as jest.Mock
+      ).mockReturnValue({
+        returning: jest.fn().mockReturnThis(),
+        useTransaction: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({
+          raw: tokens,
+        }),
+      });
+
+      config.security.apiTokensJtiCacheTtl = 0;
+
+      const redisDeleteManySpy = jest
+        .spyOn(service['redisService'], 'deleteMany')
+        .mockResolvedValue(undefined);
+      const revokeForApiGatewaySpy = jest
+        .spyOn(service, 'revokeForApiGateway')
+        .mockResolvedValue(undefined);
+
+      const result = await service.revokeAllUserApiTokens(userId);
+
+      expect(redisDeleteManySpy).not.toHaveBeenCalled();
+      expect(revokeForApiGatewaySpy).toHaveBeenCalledWith(
+        tokens.map((token) => token.jti),
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should return false if no tokens are found', async () => {
+      const userId = 'user123';
+
+      (
+        apiTokensRepository.createQueryBuilder().delete().where as jest.Mock
+      ).mockReturnValue({
+        returning: jest.fn().mockReturnThis(),
+        useTransaction: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({
+          raw: [],
+        }),
+      });
+
+      const redisDeleteManySpy = jest
+        .spyOn(service['redisService'], 'deleteMany')
+        .mockResolvedValue(undefined);
+      const revokeForApiGatewaySpy = jest
+        .spyOn(service, 'revokeForApiGateway')
+        .mockResolvedValue(undefined);
+
+      const result = await service.revokeAllUserApiTokens(userId);
+
+      expect(redisDeleteManySpy).not.toHaveBeenCalled();
+      expect(revokeForApiGatewaySpy).not.toHaveBeenCalled();
+      expect(result).toBe(false);
+    });
+
+    it('should handle errors during API Gateway revocation', async () => {
+      const userId = 'user123';
+      const tokens = [{ jti: 'token1' }, { jti: 'token2' }];
+
+      (
+        apiTokensRepository.createQueryBuilder().delete().where as jest.Mock
+      ).mockReturnValue({
+        returning: jest.fn().mockReturnThis(),
+        useTransaction: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({
+          raw: tokens,
+        }),
+      });
+
+      config.security.apiTokensJtiCacheTtl = 3600;
+
+      const redisDeleteManySpy = jest
+        .spyOn(service['redisService'], 'deleteMany')
+        .mockResolvedValue(undefined);
+
+      const revokeForApiGatewaySpy = jest
+        .spyOn(service, 'revokeForApiGateway')
+        .mockRejectedValue(new Error('API Gateway error'));
+
+      await expect(service.revokeAllUserApiTokens(userId)).rejects.toThrow(
+        'API Gateway error',
+      );
+
+      expect(redisDeleteManySpy).toHaveBeenCalledWith(
+        tokens.map((token) => service['getApiTokenCacheStorageKey'](token.jti)),
+      );
+      expect(revokeForApiGatewaySpy).toHaveBeenCalledWith(
+        tokens.map((token) => token.jti),
+      );
+    });
+  });
+
   describe('revokeUserTokenByJti', () => {
     const userId = 'user123';
     const jti = 'token-jti';
@@ -926,56 +1099,132 @@ describe('TokenService', () => {
 
   describe('revokeApiToken', () => {
     const userId = 'user123';
-    const tokenId = 'token456';
-    const deletedToken = { jti: 'token-jti' };
+    const jti = 'token456';
 
     it('should revoke the API token and call the API Gateway revocation', async () => {
-      apiTokenModel.findOneAndDelete = jest
-        .fn()
-        .mockResolvedValue(deletedToken);
+      (apiTokensRepository.delete as jest.Mock).mockResolvedValue({
+        affected: 1,
+      });
+
       const revokeForApiGatewaySpy = jest
         .spyOn<any, any>(service, 'revokeForApiGateway')
         .mockResolvedValue(undefined);
 
-      const result = await service.revokeApiToken(userId, tokenId);
+      const result = await service.revokeApiToken(userId, jti);
 
-      expect(apiTokenModel.findOneAndDelete).toHaveBeenCalledWith({
-        _id: tokenId,
-        userId,
+      expect(apiTokensRepository.delete).toHaveBeenCalledWith({
+        userId: Buffer.from(userId, 'hex'),
+        jti,
       });
-      expect(revokeForApiGatewaySpy).toHaveBeenCalledWith(deletedToken.jti);
+
+      expect(revokeForApiGatewaySpy).toHaveBeenCalledWith(jti);
+
       expect(result).toBe(true);
     });
 
     it('should return false if the API token is not found', async () => {
-      apiTokenModel.findOneAndDelete = jest.fn().mockResolvedValue(null); // No token found
-
-      const result = await service.revokeApiToken(userId, tokenId);
-
-      expect(apiTokenModel.findOneAndDelete).toHaveBeenCalledWith({
-        _id: tokenId,
-        userId,
+      (apiTokensRepository.delete as jest.Mock).mockResolvedValue({
+        affected: 0,
       });
+
+      const revokeForApiGatewaySpy = jest
+        .spyOn<any, any>(service, 'revokeForApiGateway')
+        .mockResolvedValue(undefined);
+
+      const result = await service.revokeApiToken(userId, jti);
+
+      expect(apiTokensRepository.delete).toHaveBeenCalledWith({
+        userId: Buffer.from(userId, 'hex'),
+        jti,
+      });
+
+      expect(revokeForApiGatewaySpy).not.toHaveBeenCalled();
+
       expect(result).toBe(false);
     });
 
     it('should handle errors during API Gateway revocation gracefully', async () => {
-      apiTokenModel.findOneAndDelete = jest
-        .fn()
-        .mockResolvedValue(deletedToken);
+      (apiTokensRepository.delete as jest.Mock).mockResolvedValue({
+        affected: 1,
+      });
+
       const revokeForApiGatewaySpy = jest
         .spyOn<any, any>(service, 'revokeForApiGateway')
         .mockRejectedValue(new Error('API Gateway revocation error'));
 
-      await expect(service.revokeApiToken(userId, tokenId)).rejects.toThrow(
+      await expect(service.revokeApiToken(userId, jti)).rejects.toThrow(
         'API Gateway revocation error',
       );
 
-      expect(apiTokenModel.findOneAndDelete).toHaveBeenCalledWith({
-        _id: tokenId,
-        userId,
+      expect(apiTokensRepository.delete).toHaveBeenCalledWith({
+        userId: Buffer.from(userId, 'hex'),
+        jti,
       });
-      expect(revokeForApiGatewaySpy).toHaveBeenCalledWith(deletedToken.jti);
+
+      expect(revokeForApiGatewaySpy).toHaveBeenCalledWith(jti);
+    });
+
+    it('should delete the token from Redis cache if cache TTL is set', async () => {
+      (apiTokensRepository.delete as jest.Mock).mockResolvedValue({
+        affected: 1,
+      });
+
+      config.security.apiTokensJtiCacheTtl = 3600;
+
+      const redisDeleteSpy = jest
+        .spyOn(service['redisService'], 'delete')
+        .mockResolvedValue(undefined);
+      const revokeForApiGatewaySpy = jest
+        .spyOn(service, 'revokeForApiGateway')
+        .mockResolvedValue(undefined);
+
+      const result = await service.revokeApiToken(userId, jti);
+
+      expect(redisDeleteSpy).toHaveBeenCalledWith(
+        service['getApiTokenCacheStorageKey'](jti),
+      );
+      expect(revokeForApiGatewaySpy).toHaveBeenCalledWith(jti);
+      expect(result).toBe(true);
+    });
+
+    it('should not delete from Redis if cache TTL is not set', async () => {
+      (apiTokensRepository.delete as jest.Mock).mockResolvedValue({
+        affected: 1,
+      });
+
+      config.security.apiTokensJtiCacheTtl = 0;
+
+      const redisDeleteSpy = jest
+        .spyOn(service['redisService'], 'delete')
+        .mockResolvedValue(undefined);
+      const revokeForApiGatewaySpy = jest
+        .spyOn(service, 'revokeForApiGateway')
+        .mockResolvedValue(undefined);
+
+      const result = await service.revokeApiToken(userId, jti);
+
+      expect(redisDeleteSpy).not.toHaveBeenCalled();
+      expect(revokeForApiGatewaySpy).toHaveBeenCalledWith(jti);
+      expect(result).toBe(true);
+    });
+
+    it('should not call Redis or API Gateway if token is not found', async () => {
+      (apiTokensRepository.delete as jest.Mock).mockResolvedValue({
+        affected: 0,
+      });
+
+      const redisDeleteSpy = jest
+        .spyOn(service['redisService'], 'delete')
+        .mockResolvedValue(undefined);
+      const revokeForApiGatewaySpy = jest
+        .spyOn(service, 'revokeForApiGateway')
+        .mockResolvedValue(undefined);
+
+      const result = await service.revokeApiToken(userId, jti);
+
+      expect(redisDeleteSpy).not.toHaveBeenCalled();
+      expect(revokeForApiGatewaySpy).not.toHaveBeenCalled();
+      expect(result).toBe(false);
     });
   });
 

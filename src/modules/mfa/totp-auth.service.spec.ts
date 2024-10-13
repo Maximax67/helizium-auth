@@ -3,6 +3,7 @@ import { TotpAuthService } from './totp-auth.service';
 import { TotpService } from '../totp';
 import { RedisService } from '../redis';
 import { UserService } from '../users';
+import { Errors } from '../../common/constants';
 
 describe('TotpAuthService', () => {
   let totpAuthService: TotpAuthService;
@@ -134,7 +135,7 @@ describe('TotpAuthService', () => {
 
       await expect(
         totpAuthService.validateTotp(userId, token, true),
-      ).rejects.toThrow('mfa passed');
+      ).rejects.toThrow(Errors.MFA_ALREADY_PASSED.message);
     });
 
     it('should validate user TOTP secret if no temporary secret is found', async () => {
