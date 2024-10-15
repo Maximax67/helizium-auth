@@ -32,8 +32,7 @@ class EmailConfig {
   password: string;
 
   @IsUrl()
-  @IsOptional()
-  confirmEmailFrontendUrl?: string;
+  confirmEmailFrontendUrl: string;
 }
 
 class SecurityConfig {

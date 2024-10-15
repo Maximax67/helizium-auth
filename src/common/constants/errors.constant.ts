@@ -26,8 +26,8 @@ const errorTemplates = {
     message: 'Maximum API tokens limit reached for the user',
     status: HttpStatus.BAD_REQUEST, // 400
   },
-  JWT_TOKEN_INVALID_OR_MISSING: {
-    message: 'JWT token is invalid or missing',
+  JWT_TOKEN_INVALID: {
+    message: 'JWT token is invalid',
     status: HttpStatus.UNAUTHORIZED, // 401
   },
   JWT_TOKEN_INACTIVE: {
@@ -38,8 +38,8 @@ const errorTemplates = {
     message: 'Invalid credentials provided',
     status: HttpStatus.UNAUTHORIZED, // 401
   },
-  REFRESH_TOKEN_INVALID_OR_MISSING: {
-    message: 'Refresh token is invalid or missing',
+  REFRESH_TOKEN_INVALID: {
+    message: 'Refresh token is invalid',
     status: HttpStatus.UNAUTHORIZED, // 401
   },
   INVALID_TOTP: {

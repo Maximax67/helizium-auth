@@ -12,16 +12,17 @@ import { ApiToken } from '../tokens/entities';
 import { CookiesModule } from '../cookies';
 import { UsersController } from './users.controller';
 import { config } from '../../config';
+import { USERS_PACKAGE_NAME } from './users.grpc';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, ApiToken]),
     ClientsModule.register([
       {
-        name: 'USERS_PACKAGE',
+        name: USERS_PACKAGE_NAME,
         transport: Transport.GRPC,
         options: {
-          package: 'users',
+          package: USERS_PACKAGE_NAME,
           protoPath: path.join(__dirname, './users.grpc.proto'),
           url: config.grpcServerUrl,
         },

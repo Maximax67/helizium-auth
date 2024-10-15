@@ -11,14 +11,19 @@ import { MfaInfo } from '../../common/interfaces';
 import { VerifiedUser } from './interfaces';
 
 import { ClientGrpc } from '@nestjs/microservices';
-import { UsersServiceClient } from './users.grpc';
 import { firstValueFrom } from 'rxjs';
 import { Errors, SYSTEM_USERNAME } from '../../common/constants';
 import { ApiError } from '../../common/errors';
 
+import {
+  USERS_PACKAGE_NAME,
+  USER_SERVICE_NAME,
+  UserServiceClient,
+} from './users.grpc';
+
 @Injectable()
 export class UserService {
-  private usersServiceClient: UsersServiceClient;
+  private userServiceClient: UserServiceClient;
 
   constructor(
     private readonly hashService: HashService,
@@ -26,12 +31,12 @@ export class UserService {
     @InjectRepository(User)
     private usersRepository: Repository<User>,
 
-    @Inject('USERS_PACKAGE') private readonly client: ClientGrpc,
+    @Inject(USERS_PACKAGE_NAME) private readonly client: ClientGrpc,
   ) {}
 
   onModuleInit() {
-    this.usersServiceClient =
-      this.client.getService<UsersServiceClient>('UsersService');
+    this.userServiceClient =
+      this.client.getService<UserServiceClient>(USER_SERVICE_NAME);
   }
 
   async createUser(userData: SignUpDto): Promise<string> {
@@ -55,7 +60,7 @@ export class UserService {
     }
 
     const userIdResponse = await firstValueFrom(
-      this.usersServiceClient.signUp({ username, email }),
+      this.userServiceClient.signUp({ username, email }),
     );
     const userId = userIdResponse.userId;
 
@@ -119,7 +124,7 @@ export class UserService {
       userId,
       { isBanned: true, isDeleted: false },
       async () => {
-        await firstValueFrom(this.usersServiceClient.unbanUser({ userId }));
+        await firstValueFrom(this.userServiceClient.unbanUser({ userId }));
       },
     );
   }
@@ -129,7 +134,7 @@ export class UserService {
       userId,
       { isBanned: false, isDeleted: false },
       async () => {
-        await firstValueFrom(this.usersServiceClient.unbanUser({ userId }));
+        await firstValueFrom(this.userServiceClient.unbanUser({ userId }));
       },
     );
   }
@@ -144,7 +149,7 @@ export class UserService {
         isMfaRequired: false,
       },
       async () => {
-        await firstValueFrom(this.usersServiceClient.deleteUser({ userId }));
+        await firstValueFrom(this.userServiceClient.deleteUser({ userId }));
       },
     );
   }

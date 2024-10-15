@@ -85,7 +85,7 @@ export class AuthService {
       this.deleteCookiesTokenPair(res);
       this.deleteConfirmEmailCookie(res);
 
-      throw new ApiError(Errors.REFRESH_TOKEN_INVALID_OR_MISSING);
+      throw new ApiError(Errors.REFRESH_TOKEN_INVALID);
     }
 
     const validationResult =
@@ -94,7 +94,7 @@ export class AuthService {
       this.deleteCookiesTokenPair(res);
       this.deleteConfirmEmailCookie(res);
 
-      throw new ApiError(Errors.REFRESH_TOKEN_INVALID_OR_MISSING);
+      throw new ApiError(Errors.REFRESH_TOKEN_INVALID);
     }
 
     const { decoded, status } = validationResult;
@@ -109,7 +109,7 @@ export class AuthService {
       if (currentLimits === null) {
         this.deleteCookiesTokenPair(res);
         this.deleteConfirmEmailCookie(res);
-        throw new ApiError(Errors.REFRESH_TOKEN_INVALID_OR_MISSING);
+        throw new ApiError(Errors.REFRESH_TOKEN_INVALID);
       }
 
       if (status === TokenStatuses.BECAME_ROOT) {

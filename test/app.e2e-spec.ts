@@ -1,44 +1,56 @@
-import * as request from 'supertest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
-import { AppModule } from '../src/app.module';
-import { DataSource } from 'typeorm';
-import Redis from 'ioredis';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
+import { AppController } from '../src/app.controller';
+import { AppService } from '../src/app.service';
+import { APP_PIPE } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 
 describe('AppController (e2e)', () => {
-  let app: INestApplication;
+  let app: NestFastifyApplication;
 
-  beforeEach(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
+  beforeAll(async () => {
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      controllers: [AppController],
+      providers: [
+        AppService,
+        {
+          provide: APP_PIPE,
+          useValue: new ValidationPipe({
+            whitelist: true,
+          }),
+        },
+      ],
     }).compile();
 
-    app = moduleFixture.createNestApplication();
+    app = moduleRef.createNestApplication<NestFastifyApplication>(
+      new FastifyAdapter(),
+    );
+
     await app.init();
+    await app.getHttpAdapter().getInstance().ready();
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect((res) => {
-        expect(res.body).toEqual({
-          title: expect.any(String),
-          version: expect.any(String),
-          environment: expect.any(String),
-        });
-      });
+  it('/ (GET)', async () => {
+    const result = await app.inject({
+      method: 'GET',
+      url: '/',
+    });
+
+    expect(result.statusCode).toEqual(200);
+
+    const payload = JSON.parse(result.payload);
+
+    expect(payload).toEqual({
+      title: expect.any(String),
+      version: expect.any(String),
+      environment: expect.any(String),
+    });
   });
 
   afterAll(async () => {
-    const redisClient: Redis = app.get('REDIS_CLIENT');
-    await redisClient.quit();
-
-    const dataSource = app.get(DataSource);
-    if (dataSource.isInitialized) {
-      await dataSource.destroy();
-    }
-
     await app.close();
   });
 });

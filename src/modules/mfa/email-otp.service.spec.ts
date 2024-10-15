@@ -3,9 +3,10 @@ import { MailService } from '../mail';
 import { RedisService } from '../redis';
 import * as otpGenerator from 'otp-generator';
 import { EmailTemplatesEnum } from '../../common/enums';
-import { APP_NAME, CONFIRM_EMAIL_URL } from '../../common/constants';
+import { APP_NAME } from '../../common/constants';
 import { compile } from 'path-to-regexp';
 import { EmailOtpService } from './email-otp.service';
+import { config } from '../../config';
 
 jest.mock('otp-generator', () => ({
   generate: jest.fn(),
@@ -54,7 +55,7 @@ describe('EmailOtpService', () => {
       (otpGenerator.generate as jest.Mock).mockReturnValue(otpMock);
 
       const storageKey = `eotp:${userId}:${otpMock}`;
-      const confirmLink = compile(CONFIRM_EMAIL_URL)({
+      const confirmLink = compile(config.email.confirmEmailFrontendUrl)({
         userId,
         otp: otpMock,
       });

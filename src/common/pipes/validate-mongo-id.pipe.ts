@@ -4,11 +4,12 @@ import {
   Injectable,
   PipeTransform,
 } from '@nestjs/common';
+import { MONGOOSE_OBJECT_ID_REGEX } from '../constants';
 
 @Injectable()
 export class ValidateMongoId implements PipeTransform<string> {
   transform(value: string, _metadata: ArgumentMetadata): string {
-    if (/^[a-fA-F0-9]{24}$/.test(value)) {
+    if (MONGOOSE_OBJECT_ID_REGEX.test(value)) {
       return value;
     }
 

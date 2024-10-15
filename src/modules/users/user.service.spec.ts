@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import { of } from 'rxjs';
 import { MfaMethods, TokenLimits } from '../../common/enums';
 import { Errors } from '../../common/constants';
+import { USERS_PACKAGE_NAME } from './users.grpc';
 
 const mockUserRepository = () => ({
   findOne: jest.fn(),
@@ -53,14 +54,14 @@ describe('UserService', () => {
         UserService,
         { provide: getRepositoryToken(User), useFactory: mockUserRepository },
         { provide: HashService, useFactory: mockHashService },
-        { provide: 'USERS_PACKAGE', useFactory: mockGrpcClient },
+        { provide: USERS_PACKAGE_NAME, useFactory: mockGrpcClient },
       ],
     }).compile();
 
     userService = module.get<UserService>(UserService);
     userRepository = module.get<Repository<User>>(getRepositoryToken(User));
     hashService = module.get<HashService>(HashService);
-    grpcClient = module.get<ClientGrpc>('USERS_PACKAGE');
+    grpcClient = module.get<ClientGrpc>(USERS_PACKAGE_NAME);
 
     const mockUsersServiceClient = {
       signUp: jest.fn().mockReturnValue(of({ userId: '123' })),

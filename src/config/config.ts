@@ -36,7 +36,7 @@ const appConfig: AppConfig = {
     from: process.env.EMAIL_FROM || '',
     user: process.env.EMAIL_USER || '',
     password: process.env.EMAIL_PASSWORD || '',
-    confirmEmailFrontendUrl: process.env.CONFIRM_EMAIL_FRONTEND_URL,
+    confirmEmailFrontendUrl: process.env.CONFIRM_EMAIL_FRONTEND_URL || '',
   },
   security: {
     bcryptSaltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10),

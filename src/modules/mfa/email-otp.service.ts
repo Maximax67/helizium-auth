@@ -5,7 +5,8 @@ import { Injectable } from '@nestjs/common';
 import { MailService } from '../mail';
 import { RedisService } from '../redis';
 import { EmailTemplatesEnum } from '../../common/enums';
-import { APP_NAME, CONFIRM_EMAIL_URL } from '../../common/constants';
+import { APP_NAME } from '../../common/constants';
+import { config } from '../../config';
 
 @Injectable()
 export class EmailOtpService {
@@ -17,7 +18,7 @@ export class EmailOtpService {
   };
 
   private readonly otpLength = 6;
-  private toConfirmLink = compile(CONFIRM_EMAIL_URL);
+  private toConfirmLink = compile(config.email.confirmEmailFrontendUrl);
 
   constructor(
     private readonly mailService: MailService,

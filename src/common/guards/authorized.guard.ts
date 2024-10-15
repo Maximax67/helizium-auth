@@ -53,7 +53,7 @@ export class AuthorizedGuard implements CanActivate {
         this.cookiesService.delete(response, 'accessToken', { path: '/' });
       }
 
-      throw new ApiError(Errors.JWT_TOKEN_INVALID_OR_MISSING);
+      throw new ApiError(Errors.JWT_TOKEN_INVALID);
     }
 
     const tokenInfo = await this.tokensService.validateToken(token, isApiToken);
@@ -61,7 +61,7 @@ export class AuthorizedGuard implements CanActivate {
       if (!isApiToken) {
         this.cookiesService.delete(response, 'accessToken', { path: '/' });
       }
-      throw new ApiError(Errors.JWT_TOKEN_INVALID_OR_MISSING);
+      throw new ApiError(Errors.JWT_TOKEN_INVALID);
     }
 
     if (tokenInfo.status !== TokenStatuses.ACTIVE) {

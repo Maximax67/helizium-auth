@@ -353,7 +353,7 @@ describe('AuthService', () => {
       jest.spyOn(cookieService, 'get').mockReturnValue(null);
 
       await expect(authService.refresh(req, res)).rejects.toThrow(
-        Errors.REFRESH_TOKEN_INVALID_OR_MISSING.message,
+        Errors.REFRESH_TOKEN_INVALID.message,
       );
     });
   });

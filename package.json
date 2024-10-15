@@ -19,7 +19,9 @@
     "test:watch": "cross-env NODE_ENV=test jest --watch",
     "test:cov": "cross-env NODE_ENV=test jest --coverage",
     "test:debug": "cross-env NODE_ENV=test node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "cross-env NODE_ENV=test jest --config ./test/jest-e2e.json"
+    "test:e2e": "npm run start:e2e && npm run down:e2e || npm run down:e2e",
+    "start:e2e": "docker-compose -f docker-compose.e2e.yml up --force-recreate --abort-on-container-exit --exit-code-from app",
+    "down:e2e": "docker-compose -f docker-compose.e2e.yml down -v"
   },
   "dependencies": {
     "@fastify/cookie": "^9.4.0",
@@ -51,6 +53,7 @@
     "typeorm": "^0.3.20"
   },
   "devDependencies": {
+    "@faker-js/faker": "^9.0.3",
     "@nestjs/cli": "^10.0.0",
     "@nestjs/schematics": "^10.0.0",
     "@nestjs/testing": "^10.0.0",
