@@ -39,5 +39,6 @@ export async function getJwks() {
   if (!cachedJwks) {
     cachedJwks = await generateJwks();
   }
+
   return cachedJwks;
 }

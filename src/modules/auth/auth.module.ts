@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { MailModule } from '../mail';
+import { CaptchaModule } from '../captcha';
 import { CookiesModule } from '../cookies';
 import { TokensModule } from '../tokens';
 import { UsersModule } from '../users';
@@ -11,6 +13,8 @@ import { User } from '../users/entities';
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
+    MailModule,
+    CaptchaModule,
     CookiesModule,
     TokensModule,
     UsersModule,

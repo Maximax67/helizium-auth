@@ -1,11 +1,17 @@
 import { Transform } from 'class-transformer';
 import { Matches, MaxLength } from 'class-validator';
-import { EMAIL_REGEX, PASSWORD_REGEX, USERNAME_REGEX } from '../constants';
+import {
+  EMAIL_REGEX,
+  EMAIL_VALIDATOR_MESSAGE,
+  PASSWORD_REGEX,
+  PASSWORD_VALIDATOR_MESSAGE,
+  USERNAME_REGEX,
+  USERNAME_VALIDATOR_MESSAGE,
+} from '../constants';
 
 export class SignUpDto {
   @Matches(USERNAME_REGEX, {
-    message:
-      'Username should be 4-30 characters long and contain only English letters, digits and underscores.',
+    message: USERNAME_VALIDATOR_MESSAGE,
   })
   username: string;
 
@@ -14,13 +20,12 @@ export class SignUpDto {
   )
   @MaxLength(254)
   @Matches(EMAIL_REGEX, {
-    message: 'Email is not valid.',
+    message: EMAIL_VALIDATOR_MESSAGE,
   })
   email: string;
 
   @Matches(PASSWORD_REGEX, {
-    message:
-      'Password must be 8-32 characters long and contain at least one lowercase letter, one uppercase letter, and one digit. Special characters are allowed but not required.',
+    message: PASSWORD_VALIDATOR_MESSAGE,
   })
   password: string;
 }

@@ -31,8 +31,32 @@ class EmailConfig {
   @IsNotEmpty()
   password: string;
 
+  @IsNotEmpty()
   @IsUrl()
   confirmEmailFrontendUrl: string;
+
+  @IsNotEmpty()
+  @IsUrl()
+  resetPasswordEmailFrontendUrl: string;
+}
+
+class CaptchaConfig {
+  @IsInt()
+  @IsPositive()
+  @Max(10)
+  noise: number;
+
+  @IsString()
+  ignoreChars: string;
+
+  @IsInt()
+  @IsPositive()
+  @Max(16)
+  size: number;
+
+  @IsInt()
+  @IsPositive()
+  ttl: number;
 }
 
 class SecurityConfig {
@@ -74,6 +98,10 @@ class SecurityConfig {
   @IsInt()
   @IsPositive()
   emailTimeToVerifyCookie: number;
+
+  @IsInt()
+  @IsPositive()
+  emailResetPasswordLinkTtl: number;
 
   @IsInt()
   @Min(0)
@@ -150,6 +178,7 @@ export class AppConfig {
   apiGatewayTokenRevokeUrl: string;
 
   email: EmailConfig;
+  captcha: CaptchaConfig;
   security: SecurityConfig;
   keys: KeysConfig;
 }

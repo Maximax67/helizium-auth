@@ -37,6 +37,14 @@ const appConfig: AppConfig = {
     user: process.env.EMAIL_USER || '',
     password: process.env.EMAIL_PASSWORD || '',
     confirmEmailFrontendUrl: process.env.CONFIRM_EMAIL_FRONTEND_URL || '',
+    resetPasswordEmailFrontendUrl:
+      process.env.RESET_PASSWORD_FRONTEND_URL || '',
+  },
+  captcha: {
+    noise: parseInt(process.env.CAPTCHA_NOISE || '3', 10),
+    ignoreChars: process.env.CAPTCHA_IGNORE_CHARS || '0o1i',
+    size: parseInt(process.env.CAPTCHA_SIZE || '6', 10),
+    ttl: parseInt(process.env.CAPTCHA_TTL || '300', 10),
   },
   security: {
     bcryptSaltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10),
@@ -53,6 +61,10 @@ const appConfig: AppConfig = {
       10,
     ),
     emailMfaCodeTtl: parseInt(process.env.EMAIL_MFA_CODE_TTL || '1800', 10),
+    emailResetPasswordLinkTtl: parseInt(
+      process.env.EMAIL_RESET_PASSWORD_LINK_TTL || '21600',
+      10,
+    ),
     emailTimeToVerifyCookie: parseInt(
       process.env.EMAIL_TIME_TO_VERIFY_COOKIE || '300',
       10,

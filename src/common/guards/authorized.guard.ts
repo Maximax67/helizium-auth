@@ -61,6 +61,7 @@ export class AuthorizedGuard implements CanActivate {
       if (!isApiToken) {
         this.cookiesService.delete(response, 'accessToken', { path: '/' });
       }
+
       throw new ApiError(Errors.JWT_TOKEN_INVALID);
     }
 

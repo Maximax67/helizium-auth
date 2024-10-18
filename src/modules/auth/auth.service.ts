@@ -1,16 +1,24 @@
+import { compile } from 'path-to-regexp';
 import { Injectable } from '@nestjs/common';
 import { FastifyRequest, FastifyReply } from 'fastify';
 
+import { MailService } from '../mail';
 import { UserService } from '../users';
 import { TokenService } from '../tokens';
 import { CookieService } from '../cookies';
 
-import { CookieNames, TokenLimits, TokenStatuses } from '../../common/enums';
+import {
+  CookieNames,
+  EmailTemplatesEnum,
+  TokenLimits,
+  TokenStatuses,
+} from '../../common/enums';
 import { SignInDto, SignUpDto } from '../../common/dtos';
 import { Jwk, MfaInfo, Token } from '../../common/interfaces';
 import { getJwks } from '../../common/helpers';
 import { ApiError } from '../../common/errors';
-import { Errors } from '../../common/constants';
+import { APP_NAME, Errors } from '../../common/constants';
+import { config } from '../../config';
 
 @Injectable()
 export class AuthService {
@@ -18,10 +26,16 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly tokenService: TokenService,
     private readonly cookieService: CookieService,
+    private readonly mailService: MailService,
   ) {}
+
+  private readonly toResetPasswordLink = compile(
+    config.email.resetPasswordEmailFrontendUrl,
+  );
 
   async returnJwks(): Promise<{ keys: Jwk[] }> {
     const jwks = await getJwks();
+
     return { keys: Object.values(jwks) };
   }
 
@@ -109,6 +123,7 @@ export class AuthService {
       if (currentLimits === null) {
         this.deleteCookiesTokenPair(res);
         this.deleteConfirmEmailCookie(res);
+
         throw new ApiError(Errors.REFRESH_TOKEN_INVALID);
       }
 
@@ -143,5 +158,55 @@ export class AuthService {
     await this.tokenService.revokeAllUserTokens(userId);
     this.deleteCookiesTokenPair(res);
     this.deleteConfirmEmailCookie(res);
+  }
+
+  async requestPasswordChange(email: string): Promise<void> {
+    const user = await this.userService.getIdAndUsernameByEmail(email);
+    if (user) {
+      const username = user.username;
+      const userId = user.id.toString('hex');
+
+      const resetPasswordToken =
+        await this.tokenService.generateResetPasswordToken(userId);
+
+      await this.mailService.sendMail(
+        email,
+        EmailTemplatesEnum.RESET_PASSWORD,
+        {
+          appName: APP_NAME,
+          username,
+          url: this.toResetPasswordLink({ userId, token: resetPasswordToken }),
+        },
+      );
+    }
+  }
+
+  async verifyPasswordChangeToken(userId: string, token: string) {
+    if (!(await this.tokenService.validateResetPasswordToken(userId, token))) {
+      throw new ApiError(Errors.INVALID_RESET_PASSWORD_TOKEN);
+    }
+  }
+
+  async confirmPasswordChange(
+    res: FastifyReply,
+    userId: string,
+    token: string,
+    newPassword: string,
+  ): Promise<void> {
+    await this.verifyPasswordChangeToken(userId, token);
+    await this.userService.setNewPasswordIfNotTheSame(userId, newPassword);
+    await this.tokenService.revokeResetPasswordToken(userId);
+    await this.terminate(res, userId);
+  }
+
+  async changeUserPassword(
+    res: FastifyReply,
+    userId: string,
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    await this.userService.changePassword(userId, oldPassword, newPassword);
+    await this.tokenService.revokeResetPasswordToken(userId);
+    await this.terminate(res, userId);
   }
 }

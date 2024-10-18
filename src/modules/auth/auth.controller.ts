@@ -12,12 +12,26 @@ import {
 import { FastifyRequest, FastifyReply } from 'fastify';
 
 import { AuthService } from './auth.service';
-import { JwksDto, TokenInfoDto } from './dtos';
+import {
+  ChangePasswordDto,
+  JwksDto,
+  LostPasswordChangeDto,
+  LostPasswordDto,
+  LostPasswordVerifyDto,
+  TokenInfoDto,
+} from './dtos';
 import { MfaInfoResponseDto, SignInDto, SignUpDto } from '../../common/dtos';
-import { AuthorizedGuard, ForbidApiTokensGuard } from '../../common/guards';
-import { CurrentToken } from '../../common/decorators';
+import {
+  AuthorizedGuard,
+  CaptchaGuard,
+  ForbidApiTokensGuard,
+} from '../../common/guards';
+import { AllowedLimits, CurrentToken } from '../../common/decorators';
 import { TokenInfo } from '../../common/interfaces';
 import { Serialize } from '../../common/interceptors';
+import { TokenLimits } from '../../common/enums';
+import { ApiError } from '../../common/errors';
+import { Errors } from '../../common/constants';
 
 @Controller({ path: 'auth', version: VERSION_NEUTRAL })
 export class AuthController {
@@ -30,6 +44,7 @@ export class AuthController {
   }
 
   @Post('/signup')
+  @UseGuards(CaptchaGuard)
   async signup(
     @Body() signUpDto: SignUpDto,
     @Res({ passthrough: true }) res: FastifyReply,
@@ -44,7 +59,7 @@ export class AuthController {
     @Body() signInDto: SignInDto,
     @Res({ passthrough: true }) res: FastifyReply,
   ) {
-    return await this.authService.sign(signInDto, res);
+    return this.authService.sign(signInDto, res);
   }
 
   @Get('/info')
@@ -82,5 +97,51 @@ export class AuthController {
     @Res({ passthrough: true }) res: FastifyReply,
   ) {
     await this.authService.terminate(res, token.userId);
+  }
+
+  @Post('/lost-password/send-email')
+  @UseGuards(CaptchaGuard)
+  async lostPasswordSendEmail(@Body() lostPasswordDto: LostPasswordDto) {
+    const email = lostPasswordDto.email;
+    await this.authService.requestPasswordChange(email);
+  }
+
+  @Post('/lost-password/verify')
+  @HttpCode(204)
+  async lostPasswordVerify(
+    @Body() lostPasswordVerifyDto: LostPasswordVerifyDto,
+  ) {
+    const { userId, token } = lostPasswordVerifyDto;
+    await this.authService.verifyPasswordChangeToken(userId, token);
+  }
+
+  @Post('/lost-password/change')
+  async lostPassword(
+    @Body() lostPasswordChangeDto: LostPasswordChangeDto,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    const { userId, token, password } = lostPasswordChangeDto;
+    await this.authService.confirmPasswordChange(res, userId, token, password);
+  }
+
+  @Post('/change-password')
+  @UseGuards(AuthorizedGuard, ForbidApiTokensGuard)
+  @AllowedLimits([TokenLimits.ROOT, TokenLimits.BANNED_ROOT])
+  async changePassword(
+    @CurrentToken() token: TokenInfo,
+    @Body() changePassword: ChangePasswordDto,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    const { newPassword, oldPassword } = changePassword;
+    if (newPassword === oldPassword) {
+      throw new ApiError(Errors.NEW_PASSWORD_FIELD_SAME_WITH_OLD);
+    }
+
+    await this.authService.changeUserPassword(
+      res,
+      token.userId,
+      oldPassword,
+      newPassword,
+    );
   }
 }

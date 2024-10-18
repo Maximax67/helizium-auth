@@ -120,7 +120,7 @@ export class UserService {
   }
 
   async ban(userId: string): Promise<boolean> {
-    return await this.performUserUpdate(
+    return this.performUserUpdate(
       userId,
       { isBanned: true, isDeleted: false },
       async () => {
@@ -130,7 +130,7 @@ export class UserService {
   }
 
   async unban(userId: string): Promise<boolean> {
-    return await this.performUserUpdate(
+    return this.performUserUpdate(
       userId,
       { isBanned: false, isDeleted: false },
       async () => {
@@ -140,7 +140,7 @@ export class UserService {
   }
 
   async delete(userId: string): Promise<boolean> {
-    return await this.performUserUpdate(
+    return this.performUserUpdate(
       userId,
       {
         isDeleted: true,
@@ -155,7 +155,7 @@ export class UserService {
   }
 
   async getUserEmailAndUsername(userId: string): Promise<User | null> {
-    return await this.usersRepository.findOne({
+    return this.usersRepository.findOne({
       where: { id: Buffer.from(userId, 'hex') },
       select: ['email', 'username'],
     });
@@ -309,5 +309,76 @@ export class UserService {
     }
 
     return searchResult.totpSecret ?? null;
+  }
+
+  async getIdAndUsernameByEmail(
+    email: string,
+  ): Promise<{ id: Buffer; username: string } | null> {
+    const result = await this.usersRepository.findOne({
+      where: { email, isDeleted: false },
+      select: ['id', 'username'],
+    });
+
+    return result;
+  }
+
+  private async getUserPasswordHash(bufferUserId: Buffer): Promise<string> {
+    const result = await this.usersRepository.findOne({
+      where: { id: bufferUserId, isDeleted: false },
+      select: ['passwordHash'],
+    });
+
+    if (!result || !result.passwordHash) {
+      throw new ApiError(Errors.USER_NOT_FOUND);
+    }
+
+    return result.passwordHash;
+  }
+
+  private async setNewPassword(
+    bufferUserId: Buffer,
+    password: string,
+  ): Promise<void> {
+    const passwordHash = await this.hashService.hashData(password);
+    const updateResult = await this.usersRepository.update(
+      {
+        id: bufferUserId,
+        isDeleted: false,
+      },
+      {
+        passwordHash,
+      },
+    );
+
+    if (!updateResult.affected) {
+      throw new ApiError(Errors.USER_NOT_FOUND);
+    }
+  }
+
+  async setNewPasswordIfNotTheSame(
+    userId: string,
+    password: string,
+  ): Promise<void> {
+    const bufferUserId = Buffer.from(userId, 'hex');
+    const passwordHash = await this.getUserPasswordHash(bufferUserId);
+    if (await this.hashService.compareHash(password, passwordHash)) {
+      throw new ApiError(Errors.SAME_PASSWORD);
+    }
+
+    await this.setNewPassword(bufferUserId, password);
+  }
+
+  async changePassword(
+    userId: string,
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const bufferUserId = Buffer.from(userId, 'hex');
+    const passwordHash = await this.getUserPasswordHash(bufferUserId);
+    if (!(await this.hashService.compareHash(oldPassword, passwordHash))) {
+      throw new ApiError(Errors.INVALID_PASSWORD);
+    }
+
+    await this.setNewPassword(bufferUserId, newPassword);
   }
 }

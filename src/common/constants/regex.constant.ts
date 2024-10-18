@@ -1,4 +1,5 @@
 export const MONGOOSE_OBJECT_ID_REGEX = /^[a-f0-9]{24}$/;
+export const NANOID_REGEX = /^[A-Za-z0-9_-]{21}$/;
 
 export const USERNAME_REGEX = /^(?=.*[a-zA-Z])[a-zA-Z0-9_]{4,30}$/;
 export const EMAIL_REGEX = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/;

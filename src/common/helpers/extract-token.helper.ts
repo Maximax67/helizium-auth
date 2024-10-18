@@ -8,5 +8,6 @@ export function extractToken(
   }
 
   const encodedToken = token.substring(prefixWithSpace.length);
+
   return encodedToken.length ? encodedToken : null;
 }

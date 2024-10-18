@@ -1,10 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MailService } from './mail.service';
 import { config } from '../../config';
-import {
-  EmailTemplateContexts,
-  EmailTemplateSubjects,
-} from './interfaces/email-template.interface';
+import { EmailTemplateSubjects } from './interfaces/email-template.interface';
+import { EmailTemplatesEnum } from '../../common/enums';
 
 const mockTransporter = {
   sendMail: jest.fn(),
@@ -33,7 +31,7 @@ describe('MailService', () => {
 
   it('should call transporter.sendMail with correct options', async () => {
     const to = 'test@example.com';
-    const template = 'welcome' as keyof EmailTemplateContexts;
+    const template = EmailTemplatesEnum.CONFIRM_EMAIL;
     const context = {
       appName: 'TestApp',
       otp: '123456',
@@ -59,7 +57,7 @@ describe('MailService', () => {
     mockTransporter.sendMail.mockRejectedValueOnce(new Error(errorMessage));
 
     const to = 'test@example.com';
-    const template = 'welcome' as keyof EmailTemplateContexts;
+    const template = EmailTemplatesEnum.CONFIRM_EMAIL;
     const context = {
       appName: 'TestApp',
       otp: '123456',

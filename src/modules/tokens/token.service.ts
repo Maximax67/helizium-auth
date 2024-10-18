@@ -44,6 +44,10 @@ export class TokenService {
     return `token-api:${jti}`;
   }
 
+  private getResetPasswordTokenStorageKey(userId: string) {
+    return `rp:${userId}`;
+  }
+
   private async postRevocationRequest(jti: string): Promise<void> {
     await axios.post(
       config.apiGatewayTokenRevokeUrl,
@@ -181,6 +185,34 @@ export class TokenService {
     return token;
   }
 
+  async generateResetPasswordToken(userId: string): Promise<string> {
+    const token = nanoid();
+    const storageKey = this.getResetPasswordTokenStorageKey(userId);
+
+    await this.redisService.set(
+      storageKey,
+      token,
+      config.security.emailResetPasswordLinkTtl,
+    );
+
+    return token;
+  }
+
+  async validateResetPasswordToken(
+    userId: string,
+    token: string,
+  ): Promise<boolean> {
+    const storageKey = this.getResetPasswordTokenStorageKey(userId);
+    const redisToken = await this.redisService.get(storageKey);
+
+    return redisToken === token;
+  }
+
+  async revokeResetPasswordToken(userId: string): Promise<void> {
+    const storageKey = this.getResetPasswordTokenStorageKey(userId);
+    await this.redisService.delete(storageKey);
+  }
+
   private async validateApiTokenInDatabase(jti: string): Promise<boolean> {
     const result = await this.apiTokensRepository
       .createQueryBuilder()
@@ -194,7 +226,7 @@ export class TokenService {
   async validateApiToken(jti: string): Promise<boolean> {
     const cacheTtl = config.security.apiTokensJtiCacheTtl;
     if (!cacheTtl) {
-      return await this.validateApiTokenInDatabase(jti);
+      return this.validateApiTokenInDatabase(jti);
     }
 
     const redisKey = this.getApiTokenCacheStorageKey(jti);

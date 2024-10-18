@@ -16,10 +16,10 @@ export class MailService {
     this.transporter = transporter;
   }
 
-  async sendMail<T extends keyof EmailTemplateContexts>(
+  async sendMail<T extends keyof typeof EmailTemplateSubjects>(
     to: string,
     template: T,
-    context: EmailTemplateContexts[T],
+    context: Extract<EmailTemplateContexts, { template: T }>['context'],
   ): Promise<void> {
     const subject = EmailTemplateSubjects[template];
     const mailOptions = {

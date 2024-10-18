@@ -1,15 +1,19 @@
 import { Matches } from 'class-validator';
-import { LOGIN_REGEX, PASSWORD_REGEX } from '../constants';
+import {
+  LOGIN_REGEX,
+  LOGIN_VALIDATOR_MESSAGE,
+  PASSWORD_REGEX,
+  PASSWORD_VALIDATOR_MESSAGE,
+} from '../constants';
 
 export class SignInDto {
   @Matches(LOGIN_REGEX, {
-    message: 'Login should be valid username or email.',
+    message: LOGIN_VALIDATOR_MESSAGE,
   })
   login: string;
 
   @Matches(PASSWORD_REGEX, {
-    message:
-      'Password must be 8-32 characters long and contain at least one lowercase letter, one uppercase letter, and one digit. Special characters are allowed but not required.',
+    message: PASSWORD_VALIDATOR_MESSAGE,
   })
   password: string;
 }

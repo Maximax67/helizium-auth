@@ -2,16 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CookieService } from './cookie.service';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { CookieSerializeOptions } from '@fastify/cookie';
-import { NodeEnvTypes } from '../../common/enums';
 
 describe('CookieService', () => {
   let cookieService: CookieService;
 
   beforeEach(async () => {
-    const configServiceMock = {
-      get: jest.fn().mockReturnValue(NodeEnvTypes.DEVELOPMENT),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [CookieService],
     }).compile();
