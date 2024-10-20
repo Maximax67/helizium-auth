@@ -40,25 +40,6 @@ class EmailConfig {
   resetPasswordEmailFrontendUrl: string;
 }
 
-class CaptchaConfig {
-  @IsInt()
-  @IsPositive()
-  @Max(10)
-  noise: number;
-
-  @IsString()
-  ignoreChars: string;
-
-  @IsInt()
-  @IsPositive()
-  @Max(16)
-  size: number;
-
-  @IsInt()
-  @IsPositive()
-  ttl: number;
-}
-
 class SecurityConfig {
   @IsInt()
   @IsPositive()
@@ -178,7 +159,6 @@ export class AppConfig {
   apiGatewayTokenRevokeUrl: string;
 
   email: EmailConfig;
-  captcha: CaptchaConfig;
   security: SecurityConfig;
   keys: KeysConfig;
 }

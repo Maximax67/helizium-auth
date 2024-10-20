@@ -40,12 +40,6 @@ const appConfig: AppConfig = {
     resetPasswordEmailFrontendUrl:
       process.env.RESET_PASSWORD_FRONTEND_URL || '',
   },
-  captcha: {
-    noise: parseInt(process.env.CAPTCHA_NOISE || '3', 10),
-    ignoreChars: process.env.CAPTCHA_IGNORE_CHARS || '0o1i',
-    size: parseInt(process.env.CAPTCHA_SIZE || '6', 10),
-    ttl: parseInt(process.env.CAPTCHA_TTL || '300', 10),
-  },
   security: {
     bcryptSaltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10),
     totpSecretSize: parseInt(process.env.TOTP_SECRET_SIZE || '20', 10),

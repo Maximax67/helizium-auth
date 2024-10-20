@@ -21,11 +21,7 @@ import {
   TokenInfoDto,
 } from './dtos';
 import { MfaInfoResponseDto, SignInDto, SignUpDto } from '../../common/dtos';
-import {
-  AuthorizedGuard,
-  CaptchaGuard,
-  ForbidApiTokensGuard,
-} from '../../common/guards';
+import { AuthorizedGuard, ForbidApiTokensGuard } from '../../common/guards';
 import { AllowedLimits, CurrentToken } from '../../common/decorators';
 import { TokenInfo } from '../../common/interfaces';
 import { Serialize } from '../../common/interceptors';
@@ -44,7 +40,6 @@ export class AuthController {
   }
 
   @Post('/signup')
-  @UseGuards(CaptchaGuard)
   async signup(
     @Body() signUpDto: SignUpDto,
     @Res({ passthrough: true }) res: FastifyReply,
@@ -100,7 +95,6 @@ export class AuthController {
   }
 
   @Post('/lost-password/send-email')
-  @UseGuards(CaptchaGuard)
   async lostPasswordSendEmail(@Body() lostPasswordDto: LostPasswordDto) {
     const email = lostPasswordDto.email;
     await this.authService.requestPasswordChange(email);

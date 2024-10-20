@@ -1,7 +1,6 @@
 FROM node:22-alpine AS app
 
 RUN apk update && apk upgrade
-RUN apk add python3 g++ make
 
 RUN mkdir -p /usr/src/app/node_modules
 RUN chown -R node:node /usr/src/app

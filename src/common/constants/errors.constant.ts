@@ -26,14 +26,6 @@ const errorTemplates = {
     message: 'Maximum API tokens limit reached for the user',
     status: HttpStatus.BAD_REQUEST, // 400
   },
-  CAPTCHA_REQUIRED: {
-    message: 'Captcha required',
-    status: HttpStatus.BAD_REQUEST, // 400
-  },
-  CAPTCHA_INVALID_OR_EXPIRED: {
-    message: 'Captcha is invalid or expired',
-    status: HttpStatus.BAD_REQUEST, // 400
-  },
   INVALID_RESET_PASSWORD_TOKEN: {
     message: 'Invalid or expired reset password token',
     status: HttpStatus.BAD_REQUEST, // 400
