@@ -14,6 +14,7 @@ import { SignInDto, SignUpDto } from '../../common/dtos';
 import { getJwks } from '../../common/helpers';
 import { VerifiedUser } from '../users/interfaces';
 import { Errors } from '../../common/constants';
+import { MailService } from '../mail';
 
 jest.mock('../../common/helpers', () => ({
   getJwks: jest.fn(),
@@ -54,6 +55,10 @@ describe('AuthService', () => {
             get: jest.fn(),
             delete: jest.fn(),
           },
+        },
+        {
+          provide: MailService,
+          useValue: {},
         },
       ],
     }).compile();
