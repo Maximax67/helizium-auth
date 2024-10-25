@@ -15,6 +15,7 @@ import { getJwks } from '../../common/helpers';
 import { VerifiedUser } from '../users/interfaces';
 import { Errors } from '../../common/constants';
 import { MailService } from '../mail';
+import { ApiError } from '../../common/errors';
 
 jest.mock('../../common/helpers', () => ({
   getJwks: jest.fn(),
@@ -36,6 +37,8 @@ describe('AuthService', () => {
             createUser: jest.fn(),
             verifyUser: jest.fn(),
             isUserHasLimits: jest.fn(),
+            setNewPasswordIfNotTheSame: jest.fn(),
+            changePassword: jest.fn(),
           },
         },
         {
@@ -46,6 +49,8 @@ describe('AuthService', () => {
             revokeTokenPair: jest.fn(),
             revokeUserTokenByJti: jest.fn(),
             revokeAllUserTokens: jest.fn(),
+            validateResetPasswordToken: jest.fn(),
+            revokeResetPasswordToken: jest.fn(),
           },
         },
         {
@@ -391,6 +396,87 @@ describe('AuthService', () => {
 
       expect(cookieService.delete).toHaveBeenCalled();
       expect(tokenService.revokeAllUserTokens).toHaveBeenCalledWith('userId');
+    });
+  });
+
+  describe('verifyPasswordChangeToken', () => {
+    it('should throw an error if the token is invalid', async () => {
+      (tokenService.validateResetPasswordToken as jest.Mock).mockResolvedValue(
+        false,
+      );
+      await expect(
+        authService.verifyPasswordChangeToken('userId', 'invalidToken'),
+      ).rejects.toThrow(ApiError);
+      expect(tokenService.validateResetPasswordToken).toHaveBeenCalledWith(
+        'userId',
+        'invalidToken',
+      );
+    });
+
+    it('should not throw an error if the token is valid', async () => {
+      (tokenService.validateResetPasswordToken as jest.Mock).mockResolvedValue(
+        true,
+      );
+      await expect(
+        authService.verifyPasswordChangeToken('userId', 'validToken'),
+      ).resolves.not.toThrow();
+      expect(tokenService.validateResetPasswordToken).toHaveBeenCalledWith(
+        'userId',
+        'validToken',
+      );
+    });
+  });
+
+  describe('confirmPasswordChange', () => {
+    it('should verify token, update password, and terminate session', async () => {
+      const res = {} as FastifyReply;
+
+      (tokenService.validateResetPasswordToken as jest.Mock).mockResolvedValue(
+        true,
+      );
+      (userService.setNewPasswordIfNotTheSame as jest.Mock).mockResolvedValue(
+        true,
+      );
+
+      await authService.confirmPasswordChange(
+        res,
+        'userId',
+        'token',
+        'newPassword',
+      );
+
+      expect(tokenService.validateResetPasswordToken).toHaveBeenCalledWith(
+        'userId',
+        'token',
+      );
+      expect(userService.setNewPasswordIfNotTheSame).toHaveBeenCalledWith(
+        'userId',
+        'newPassword',
+      );
+      expect(tokenService.revokeResetPasswordToken).toHaveBeenCalledWith(
+        'userId',
+      );
+    });
+  });
+
+  describe('changeUserPassword', () => {
+    it('should change password and terminate user session', async () => {
+      const res = {} as FastifyReply;
+      await authService.changeUserPassword(
+        res,
+        'userId',
+        'oldPassword',
+        'newPassword',
+      );
+
+      expect(userService.changePassword).toHaveBeenCalledWith(
+        'userId',
+        'oldPassword',
+        'newPassword',
+      );
+      expect(tokenService.revokeResetPasswordToken).toHaveBeenCalledWith(
+        'userId',
+      );
     });
   });
 });
