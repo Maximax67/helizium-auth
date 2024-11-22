@@ -67,18 +67,20 @@ describe('AuthController (e2e)', () => {
   let userRefreshToken: string;
   let emailToken: string;
 
-  let user1Email: string,
-    user1Password: string,
-    user1AccessToken: string,
-    user1EmailToken: string;
-  let user2Email: string,
-    user2Password: string,
-    user2AccessToken: string,
-    user2EmailToken: string;
-  let user3Email: string,
-    user3Password: string,
-    user3AccessToken: string,
-    user3EmailToken: string;
+  let user1Email: string;
+  let user1Password: string;
+  let user1AccessToken: string;
+  let user1EmailToken: string;
+
+  let user2Email: string;
+  let user2Password: string;
+  let user2AccessToken: string;
+  let user2EmailToken: string;
+
+  let user3Email: string;
+  let user3Password: string;
+  let user3AccessToken: string;
+  let user3EmailToken: string;
 
   const mockUserGrpcClient = {
     signUp: jest.fn(() => of({ userId: generateObjectId() })),
@@ -130,25 +132,19 @@ describe('AuthController (e2e)', () => {
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
 
-    // User 1 Setup
     user1Email = faker.internet.email();
     user1Password = generatePassword();
     user1AccessToken = await signUpAndLoginUser(user1Email, user1Password);
-
     user1EmailToken = await sendEmailOtp(user1AccessToken);
 
-    // User 2 Setup
     user2Email = faker.internet.email();
     user2Password = generatePassword();
     user2AccessToken = await signUpAndLoginUser(user2Email, user2Password);
-
     user2EmailToken = await sendEmailOtp(user2AccessToken);
 
-    // User 3 Setup
     user3Email = faker.internet.email();
     user3Password = generatePassword();
     user3AccessToken = await signUpAndLoginUser(user3Email, user3Password);
-
     user3EmailToken = await sendEmailOtp(user3AccessToken);
   });
 
