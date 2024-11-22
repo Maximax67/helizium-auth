@@ -273,7 +273,7 @@ export class UserService {
     const result = await this.usersRepository.update(
       {
         id: Buffer.from(userId, 'hex'),
-        isMfaRequired: required,
+        isMfaRequired: !required,
         isDeleted: false,
       },
       { isMfaRequired: required },

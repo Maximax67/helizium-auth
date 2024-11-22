@@ -554,7 +554,7 @@ describe('UserService', () => {
       expect(userRepository.update).toHaveBeenCalledWith(
         {
           id: Buffer.from('123', 'hex'),
-          isMfaRequired: true,
+          isMfaRequired: false,
           isDeleted: false,
         },
         { isMfaRequired: true },
@@ -571,7 +571,7 @@ describe('UserService', () => {
       expect(userRepository.update).toHaveBeenCalledWith(
         {
           id: Buffer.from('123', 'hex'),
-          isMfaRequired: true,
+          isMfaRequired: false,
           isDeleted: false,
         },
         { isMfaRequired: true },
