@@ -16,14 +16,23 @@ import { Errors, SYSTEM_USERNAME } from '../../common/constants';
 import { ApiError } from '../../common/errors';
 
 import {
-  USERS_PACKAGE_NAME,
-  USER_SERVICE_NAME,
-  UserServiceClient,
+  PACKAGE_NAME as USERS_PACKAGE_NAME,
+  SERVICE_NAME as USER_SERVICE_NAME,
+  UserGrpcService,
 } from './users.grpc';
+import {
+  context,
+  propagation,
+  SpanStatusCode,
+  trace,
+  Tracer,
+} from '@opentelemetry/api';
+import { Metadata } from '@grpc/grpc-js';
+import { getErrorMessage } from '../../common/helpers';
 
 @Injectable()
 export class UserService {
-  private userServiceClient: UserServiceClient;
+  private userServiceClient: UserGrpcService;
 
   constructor(
     private readonly hashService: HashService,
@@ -32,11 +41,13 @@ export class UserService {
     private usersRepository: Repository<User>,
 
     @Inject(USERS_PACKAGE_NAME) private readonly client: ClientGrpc,
+
+    @Inject('TRACER') private readonly tracer: Tracer,
   ) {}
 
   onModuleInit() {
     this.userServiceClient =
-      this.client.getService<UserServiceClient>(USER_SERVICE_NAME);
+      this.client.getService<UserGrpcService>(USER_SERVICE_NAME);
   }
 
   async createUser(userData: SignUpDto): Promise<string> {
@@ -47,7 +58,7 @@ export class UserService {
     }
 
     const userExists = await this.usersRepository.findOne({
-      where: { username, email },
+      where: [{ username }, { email }],
       select: ['isDeleted'],
     });
 
@@ -59,10 +70,37 @@ export class UserService {
       throw new ApiError(Errors.USER_ALREADY_EXISTS);
     }
 
-    const userIdResponse = await firstValueFrom(
-      this.userServiceClient.signUp({ username, email }),
+    const span = this.tracer.startSpan(
+      'grpc:signUp',
+      {
+        attributes: { 'rpc.service': USER_SERVICE_NAME },
+      },
+      context.active(),
     );
-    const userId = userIdResponse.userId;
+
+    let userId: string;
+    try {
+      const metadata = new Metadata();
+      const spanContext = trace.setSpan(context.active(), span);
+      propagation.inject(spanContext, metadata, {
+        set: (metadata, key, value) => metadata.set(key, value),
+      });
+
+      const userIdResponse = await firstValueFrom(
+        this.userServiceClient.signUp({ username, email }, metadata),
+      );
+
+      userId = userIdResponse.userId!;
+      span.setStatus({ code: SpanStatusCode.OK });
+    } catch (error) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: getErrorMessage(error),
+      });
+      throw error;
+    } finally {
+      span.end();
+    }
 
     const passwordHash = await this.hashService.hashData(password);
 
@@ -80,6 +118,7 @@ export class UserService {
     userId: string,
     updateData: any,
     remoteServiceCall: () => Promise<void>,
+    serviceCallSpanName: string,
   ): Promise<boolean> {
     const queryRunner: QueryRunner =
       this.usersRepository.manager.connection.createQueryRunner();
@@ -97,9 +136,22 @@ export class UserService {
         return false;
       }
 
+      const span = this.tracer.startSpan(
+        serviceCallSpanName,
+        {
+          attributes: { 'rpc.service': USER_SERVICE_NAME },
+        },
+        context.active(),
+      );
+
       try {
         await remoteServiceCall();
       } catch (error) {
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: getErrorMessage(error),
+        });
+
         // Ignore the exception with code 9 (FAILED_PRECONDITION) or 5 (NOT_FOUND).
         if (
           !error ||
@@ -107,6 +159,8 @@ export class UserService {
         ) {
           throw error;
         }
+      } finally {
+        span.end();
       }
 
       await queryRunner.commitTransaction();
@@ -120,26 +174,47 @@ export class UserService {
   }
 
   async ban(userId: string): Promise<boolean> {
+    const metadata = new Metadata();
+    propagation.inject(context.active(), metadata, {
+      set: (metadata, key, value) => metadata.set(key, value),
+    });
+
     return this.performUserUpdate(
       userId,
       { isBanned: true, isDeleted: false },
       async () => {
-        await firstValueFrom(this.userServiceClient.unbanUser({ userId }));
+        await firstValueFrom(
+          this.userServiceClient.banUser({ userId }, metadata),
+        );
       },
+      'grpc:banUser',
     );
   }
 
   async unban(userId: string): Promise<boolean> {
+    const metadata = new Metadata();
+    propagation.inject(context.active(), metadata, {
+      set: (metadata, key, value) => metadata.set(key, value),
+    });
+
     return this.performUserUpdate(
       userId,
       { isBanned: false, isDeleted: false },
       async () => {
-        await firstValueFrom(this.userServiceClient.unbanUser({ userId }));
+        await firstValueFrom(
+          this.userServiceClient.unbanUser({ userId }, metadata),
+        );
       },
+      'grpc:unbanUser',
     );
   }
 
   async delete(userId: string): Promise<boolean> {
+    const metadata = new Metadata();
+    propagation.inject(context.active(), metadata, {
+      set: (metadata, key, value) => metadata.set(key, value),
+    });
+
     return this.performUserUpdate(
       userId,
       {
@@ -149,8 +224,11 @@ export class UserService {
         isMfaRequired: false,
       },
       async () => {
-        await firstValueFrom(this.userServiceClient.deleteUser({ userId }));
+        await firstValueFrom(
+          this.userServiceClient.deleteUser({ userId }, metadata),
+        );
       },
+      'grpc:deleteUser',
     );
   }
 

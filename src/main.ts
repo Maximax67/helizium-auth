@@ -8,8 +8,11 @@ import {
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters';
 import { config } from './config';
+import { TracerModule } from './modules/tracer';
 
 async function bootstrap() {
+  TracerModule.initialize();
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter(),
@@ -30,6 +33,9 @@ async function bootstrap() {
   app.useGlobalFilters(new GlobalExceptionFilter());
 
   await app.register(fastifyCookie);
-  await app.listen(config.port, config.ip ?? '0.0.0.0');
+  await app.listen({
+    port: config.port,
+    host: config.host || '0.0.0.0',
+  });
 }
 bootstrap();

@@ -140,7 +140,7 @@ export class AppConfig {
   @IsString()
   @IsNotEmpty()
   @IsOptional()
-  ip?: string;
+  host?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -157,6 +157,10 @@ export class AppConfig {
   @IsString()
   @IsNotEmpty()
   apiGatewayTokenRevokeUrl: string;
+
+  @IsString()
+  @IsNotEmpty()
+  otlpCollectorUrl: string;
 
   email: EmailConfig;
   security: SecurityConfig;

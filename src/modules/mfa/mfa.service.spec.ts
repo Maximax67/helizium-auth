@@ -26,8 +26,14 @@ describe('MfaService', () => {
   let cookieService: CookieService;
   let emailOtpService: EmailOtpService;
   let totpAuthService: TotpAuthService;
-  let mockReq: FastifyRequest;
-  let mockRes: FastifyReply;
+
+  const mockReq = {
+    cookies: {},
+  } as FastifyRequest;
+
+  const mockRes = {
+    set: jest.fn(),
+  } as unknown as FastifyReply;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -97,14 +103,6 @@ describe('MfaService', () => {
     cookieService = module.get<CookieService>(CookieService);
     emailOtpService = module.get<EmailOtpService>(EmailOtpService);
     totpAuthService = module.get<TotpAuthService>(TotpAuthService);
-
-    mockReq = {
-      cookies: {},
-    } as FastifyRequest;
-
-    mockRes = {
-      set: jest.fn(),
-    } as unknown as FastifyReply;
   });
 
   afterEach(() => {
@@ -449,7 +447,7 @@ describe('MfaService', () => {
     const otp = '123456';
     const limits = TokenLimits.EMAIL_NOT_CONFIRMED;
 
-    beforeEach(() => {
+    beforeAll(() => {
       (nanoid as jest.Mock).mockReturnValue(cookieToken);
       mockReq.cookies[CookieNames.EMAIL_CONFIRM_TOKEN] = cookieToken;
     });
@@ -525,7 +523,7 @@ describe('MfaService', () => {
     const mockCookieToken = 'cookieToken';
     const tokenStorageKey = `ect:${mockUserId}:${mockCookieToken}`;
 
-    beforeEach(() => {
+    beforeAll(() => {
       mockReq.cookies = {
         [CookieNames.EMAIL_CONFIRM_TOKEN]: mockCookieToken,
       };

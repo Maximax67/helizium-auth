@@ -1,6 +1,6 @@
 services:
-  app:
-    container_name: app
+  auth-service:
+    container_name: auth-service
     build:
       context: .
       target: app
@@ -9,9 +9,11 @@ services:
       - .:/usr/src/app
       - /usr/src/app/node_modules
     working_dir: /usr/src/app
-    command: "npx cross-env NODE_ENV=test ./node_modules/.bin/jest --config ./test/jest-e2e.json --colors"
+    command: "npm run start:dev"
     networks:
-      - webnet
+      - helizium-network
+    ports:
+      - "3500:3500"
     depends_on:
       - redis
       - postgres
@@ -19,16 +21,16 @@ services:
   redis:
     container_name: redis
     image: redis:latest
-    networks:
-      - webnet
     command: ["redis-server", "--loglevel", "warning"]
+    networks:
+      - helizium-network
 
   postgres:
     container_name: postgres
     image: postgres:latest
-    networks:
-      - webnet
     attach: false
+    networks:
+      - helizium-network
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
@@ -36,4 +38,5 @@ services:
       PG_DATA: /var/lib/postgresql/data
 
 networks:
-  webnet:
+  helizium-network:
+    external: true

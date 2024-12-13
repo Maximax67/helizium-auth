@@ -2,20 +2,25 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { RedisService } from './redis.service';
 import Redis from 'ioredis-mock';
 
+const mockTracer = {
+  startSpan: jest.fn().mockReturnValue({
+    end: jest.fn(),
+    setStatus: jest.fn(),
+  }),
+};
+
 describe('RedisService', () => {
   let redisService: RedisService;
   let redisMock: typeof Redis.prototype;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     redisMock = new Redis();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RedisService,
-        {
-          provide: 'REDIS_CLIENT',
-          useValue: redisMock,
-        },
+        { provide: 'REDIS_CLIENT', useValue: redisMock },
+        { provide: 'TRACER', useValue: mockTracer },
       ],
     }).compile();
 
@@ -97,8 +102,8 @@ describe('RedisService', () => {
     it('should delete a key from redis', async () => {
       const key = 'test-key';
       await redisMock.set(key, 'some-value');
-
       await redisService.delete(key);
+
       const result = await redisMock.get(key);
       expect(result).toBeNull();
     });
@@ -115,6 +120,7 @@ describe('RedisService', () => {
 
       const result1 = await redisMock.get('key1');
       const result2 = await redisMock.get('key2');
+
       expect(result1).toEqual('value1');
       expect(result2).toEqual('value2');
     });
@@ -140,6 +146,7 @@ describe('RedisService', () => {
 
       const result1 = await redisMock.get('key1');
       const result2 = await redisMock.get('key2');
+
       expect(result1).toBeNull();
       expect(result2).toBeNull();
     });
@@ -156,6 +163,7 @@ describe('RedisService', () => {
       const result1 = await redisMock.get('test-1');
       const result2 = await redisMock.get('test-2');
       const result3 = await redisMock.get('other-1');
+
       expect(result1).toBeNull();
       expect(result2).toBeNull();
       expect(result3).toEqual('value3');

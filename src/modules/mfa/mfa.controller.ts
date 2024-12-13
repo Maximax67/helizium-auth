@@ -59,6 +59,7 @@ export class MfaController {
     TokenLimits.DEFAULT,
     TokenLimits.EMAIL_NOT_CONFIRMED,
     TokenLimits.MFA_REQUIRED,
+    TokenLimits.USER_BANNED,
   ])
   async sendEmailCode(
     @CurrentToken() token: TokenInfo,
@@ -75,6 +76,7 @@ export class MfaController {
     TokenLimits.DEFAULT,
     TokenLimits.EMAIL_NOT_CONFIRMED,
     TokenLimits.MFA_REQUIRED,
+    TokenLimits.USER_BANNED,
   ])
   @HttpCode(200)
   async confirmEmailCode(
@@ -104,6 +106,7 @@ export class MfaController {
     TokenLimits.DEFAULT,
     TokenLimits.EMAIL_NOT_CONFIRMED,
     TokenLimits.MFA_REQUIRED,
+    TokenLimits.USER_BANNED,
   ])
   @HttpCode(204)
   async cancelEmailConfirmation(
@@ -119,6 +122,7 @@ export class MfaController {
     TokenLimits.DEFAULT,
     TokenLimits.EMAIL_NOT_CONFIRMED,
     TokenLimits.MFA_REQUIRED,
+    TokenLimits.USER_BANNED,
   ])
   async verifyEmailConfirmation(
     @CurrentToken() token: TokenInfo,
@@ -154,7 +158,6 @@ export class MfaController {
   @Post('totp/confirm')
   @AllowedLimits([
     TokenLimits.DEFAULT,
-    TokenLimits.EMAIL_NOT_CONFIRMED,
     TokenLimits.MFA_REQUIRED,
     TokenLimits.ROOT,
     TokenLimits.BANNED_ROOT,

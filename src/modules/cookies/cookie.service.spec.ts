@@ -6,7 +6,7 @@ import { CookieSerializeOptions } from '@fastify/cookie';
 describe('CookieService', () => {
   let cookieService: CookieService;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [CookieService],
     }).compile();

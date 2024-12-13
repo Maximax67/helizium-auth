@@ -9,9 +9,9 @@ import { Repository } from 'typeorm';
 import { of } from 'rxjs';
 import { MfaMethods, TokenLimits } from '../../common/enums';
 import { Errors } from '../../common/constants';
-import { USERS_PACKAGE_NAME } from './users.grpc';
+import { PACKAGE_NAME as USERS_PACKAGE_NAME } from './users.grpc';
 
-const mockUserRepository = () => ({
+const mockUserRepository = {
   findOne: jest.fn(),
   findOneBy: jest.fn(),
   insert: jest.fn(),
@@ -27,20 +27,27 @@ const mockUserRepository = () => ({
       }),
     },
   },
-});
+};
 
-const mockHashService = () => ({
+const mockHashService = {
   hashData: jest.fn(),
   compareHash: jest.fn(),
-});
+};
 
-const mockGrpcClient = () => ({
+const mockGrpcClient = {
   getService: jest.fn().mockReturnValue({
     signUp: jest.fn(),
     unbanUser: jest.fn(),
     deleteUser: jest.fn(),
   }),
-});
+};
+
+const mockTracer = {
+  startSpan: jest.fn().mockReturnValue({
+    end: jest.fn(),
+    setStatus: jest.fn(),
+  }),
+};
 
 describe('UserService', () => {
   let userService: UserService;
@@ -48,13 +55,14 @@ describe('UserService', () => {
   let hashService: HashService;
   let grpcClient: ClientGrpc;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UserService,
-        { provide: getRepositoryToken(User), useFactory: mockUserRepository },
-        { provide: HashService, useFactory: mockHashService },
-        { provide: USERS_PACKAGE_NAME, useFactory: mockGrpcClient },
+        { provide: getRepositoryToken(User), useValue: mockUserRepository },
+        { provide: HashService, useValue: mockHashService },
+        { provide: USERS_PACKAGE_NAME, useValue: mockGrpcClient },
+        { provide: 'TRACER', useValue: mockTracer },
       ],
     }).compile();
 
@@ -436,7 +444,7 @@ describe('UserService', () => {
   describe('getUserLimitsIfBecameRoot', () => {
     let isUserHasLimits: jest.SpyInstance;
 
-    beforeEach(async () => {
+    beforeAll(() => {
       isUserHasLimits = jest.spyOn(userService, 'isUserHasLimits');
     });
 

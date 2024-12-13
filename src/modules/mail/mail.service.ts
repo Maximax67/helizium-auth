@@ -5,6 +5,8 @@ import {
   EmailTemplateSubjects,
 } from './interfaces/email-template.interface';
 import { config } from '../../config';
+import { SpanStatusCode, Tracer } from '@opentelemetry/api';
+import { getErrorMessage } from '../../common/helpers';
 
 @Injectable()
 export class MailService {
@@ -12,6 +14,7 @@ export class MailService {
 
   constructor(
     @Inject('NODEMAIL_TRANSPORTER') transporter: nodemailer.Transporter,
+    @Inject('TRACER') private readonly tracer: Tracer,
   ) {
     this.transporter = transporter;
   }
@@ -30,10 +33,18 @@ export class MailService {
       context,
     };
 
+    const span = this.tracer.startSpan('mail:send');
     try {
       await this.transporter.sendMail(mailOptions);
     } catch (error) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: getErrorMessage(error),
+      });
+
       throw error;
+    } finally {
+      span.end();
     }
   }
 }

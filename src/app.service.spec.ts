@@ -5,7 +5,7 @@ import { NodeEnvTypes } from './common/enums';
 describe('AppService', () => {
   let appService: AppService;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [AppService],
     }).compile();

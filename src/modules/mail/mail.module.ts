@@ -4,8 +4,10 @@ import * as hbs from 'nodemailer-express-handlebars';
 import { Module } from '@nestjs/common';
 import { MailService } from './mail.service';
 import { config } from '../../config';
+import { TracerProviderModule } from '../tracer';
 
 @Module({
+  imports: [TracerProviderModule.register()],
   providers: [
     MailService,
     {

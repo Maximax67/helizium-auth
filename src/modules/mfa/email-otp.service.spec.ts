@@ -17,7 +17,7 @@ describe('EmailOtpService', () => {
   let mailService: MailService;
   let redisService: RedisService;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmailOtpService,
@@ -41,6 +41,10 @@ describe('EmailOtpService', () => {
     emailOtpService = module.get<EmailOtpService>(EmailOtpService);
     mailService = module.get<MailService>(MailService);
     redisService = module.get<RedisService>(RedisService);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   describe('sendOtp', () => {

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package users;
 
-service UserService {
+service UserGrpcService {
   rpc SignUp (SignUpMsg) returns (UserIdMsg);
   rpc BanUser (UserIdMsg) returns (Empty);
   rpc UnbanUser (UserIdMsg) returns (Empty);

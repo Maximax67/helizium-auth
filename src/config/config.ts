@@ -25,11 +25,12 @@ const appConfig: AppConfig = {
   version: process.env.npm_package_version || '1.0.0',
   description: process.env.npm_package_description || 'Authorization API',
   port: parseInt(process.env.PORT || '3000', 10),
-  ip: process.env.IP,
+  host: process.env.HOST,
   databaseUrl: process.env.DATABASE_URL || '',
   redisUrl: process.env.REDIS_URL || '',
   grpcServerUrl: process.env.GRPC_SERVER_URL || '',
   apiGatewayTokenRevokeUrl: process.env.API_GATEWAY_TOKEN_REVOKE_URL || '',
+  otlpCollectorUrl: process.env.OTLP_COLLECTOR_URL || '',
   email: {
     host: process.env.EMAIL_HOST || '',
     port: parseInt(process.env.EMAIL_PORT || '587', 10),

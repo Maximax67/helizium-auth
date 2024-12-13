@@ -39,7 +39,11 @@ export class AuthService {
     return { keys: Object.values(jwks) };
   }
 
-  setTokenPairToCookies(res: FastifyReply, access: Token, refresh: Token) {
+  setTokenPairToCookies(
+    res: FastifyReply,
+    access: Token,
+    refresh: Token,
+  ): void {
     this.cookieService.set(res, CookieNames.REFRESH_TOKEN, refresh.token, {
       path: '/auth/refresh',
       expires: new Date(refresh.exp * 1000),
@@ -51,14 +55,14 @@ export class AuthService {
     });
   }
 
-  deleteCookiesTokenPair(res: FastifyReply) {
+  deleteCookiesTokenPair(res: FastifyReply): void {
     this.cookieService.delete(res, CookieNames.REFRESH_TOKEN, {
       path: '/auth/refresh',
     });
     this.cookieService.delete(res, CookieNames.ACCESS_TOKEN, { path: '/' });
   }
 
-  deleteConfirmEmailCookie(res: FastifyReply) {
+  deleteConfirmEmailCookie(res: FastifyReply): void {
     this.cookieService.delete(res, CookieNames.EMAIL_CONFIRM_TOKEN, {
       path: '/auth/mfa/email/',
     });
@@ -181,7 +185,10 @@ export class AuthService {
     }
   }
 
-  async verifyPasswordChangeToken(userId: string, token: string) {
+  async verifyPasswordChangeToken(
+    userId: string,
+    token: string,
+  ): Promise<void> {
     if (!(await this.tokenService.validateResetPasswordToken(userId, token))) {
       throw new ApiError(Errors.INVALID_RESET_PASSWORD_TOKEN);
     }

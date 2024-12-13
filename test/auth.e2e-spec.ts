@@ -17,7 +17,10 @@ import {
   generatePassword,
   generateUsername,
 } from '../src/common/helpers';
-import { USERS_PACKAGE_NAME, UserService } from '../src/modules/users';
+import {
+  PACKAGE_NAME as USERS_PACKAGE_NAME,
+  UserService,
+} from '../src/modules/users';
 import { AuthModule } from '../src/modules/auth';
 import { APP_PIPE } from '@nestjs/core';
 import { HttpStatus, ValidationPipe } from '@nestjs/common';
@@ -50,6 +53,13 @@ const mockTransporter = {
   sendMail: jest.fn((mailOptions) => {
     sentMailOptions.push(mailOptions);
     return Promise.resolve({ messageId: 'mocked-message-id' });
+  }),
+};
+
+const mockTracer = {
+  startSpan: jest.fn().mockReturnValue({
+    end: jest.fn(),
+    setStatus: jest.fn(),
   }),
 };
 
@@ -107,11 +117,16 @@ describe('AuthController (e2e)', () => {
           provide: 'NODEMAIL_TRANSPORTER',
           useValue: mockTransporter,
         },
+        {
+          provide: 'TRACER',
+          useValue: mockTracer,
+        },
       ],
     })
       .overrideProvider(MailService)
       .useFactory({
-        factory: () => new MailService(mockTransporter as any),
+        factory: () =>
+          new MailService(mockTransporter as any, mockTracer as any),
       })
       .overrideProvider(USERS_PACKAGE_NAME)
       .useValue(mockClientGrpc)
@@ -146,6 +161,10 @@ describe('AuthController (e2e)', () => {
     user3Password = generatePassword();
     user3AccessToken = await signUpAndLoginUser(user3Email, user3Password);
     user3EmailToken = await sendEmailOtp(user3AccessToken);
+
+    expect(user1EmailToken).toBeDefined();
+    expect(user2EmailToken).toBeDefined();
+    expect(user3EmailToken).toBeDefined();
   });
 
   async function signUpAndLoginUser(

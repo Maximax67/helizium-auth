@@ -8,9 +8,11 @@ import { MfaModule } from './modules/mfa';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { databaseConfig } from './config';
+import { TracerModule } from './modules/tracer';
 
 @Module({
   imports: [
+    TracerModule,
     TypeOrmModule.forRoot(databaseConfig),
     AuthModule,
     TokensModule,

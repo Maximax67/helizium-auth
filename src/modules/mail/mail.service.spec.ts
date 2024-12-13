@@ -8,16 +8,27 @@ const mockTransporter = {
   sendMail: jest.fn(),
 };
 
+const mockTracer = {
+  startSpan: jest.fn().mockReturnValue({
+    end: jest.fn(),
+    setStatus: jest.fn(),
+  }),
+};
+
 describe('MailService', () => {
   let mailService: MailService;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MailService,
         {
           provide: 'NODEMAIL_TRANSPORTER',
           useValue: mockTransporter,
+        },
+        {
+          provide: 'TRACER',
+          useValue: mockTracer,
         },
       ],
     }).compile();

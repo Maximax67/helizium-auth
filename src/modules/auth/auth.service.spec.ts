@@ -27,7 +27,7 @@ describe('AuthService', () => {
   let tokenService: TokenService;
   let cookieService: CookieService;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -72,6 +72,10 @@ describe('AuthService', () => {
     userService = module.get<UserService>(UserService);
     tokenService = module.get<TokenService>(TokenService);
     cookieService = module.get<CookieService>(CookieService);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
