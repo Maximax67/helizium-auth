@@ -1,0 +1,42 @@
+services:
+  auth-service:
+    container_name: auth-service
+    build:
+      context: .
+      target: app
+      dockerfile: Dockerfile
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    working_dir: /usr/src/app
+    command: "npm run start:dev"
+    networks:
+      - helizium-network
+    ports:
+      - "3500:3500"
+    depends_on:
+      - redis
+      - postgres
+
+  redis:
+    container_name: redis
+    image: redis:latest
+    command: ["redis-server", "--loglevel", "warning"]
+    networks:
+      - helizium-network
+
+  postgres:
+    container_name: postgres
+    image: postgres:latest
+    attach: false
+    networks:
+      - helizium-network
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PG_DATA: /var/lib/postgresql/data
+
+networks:
+  helizium-network:
+    external: true

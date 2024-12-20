@@ -1,0 +1,39 @@
+services:
+  app:
+    container_name: app
+    build:
+      context: .
+      target: app
+      dockerfile: Dockerfile
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    working_dir: /usr/src/app
+    command: "npx cross-env NODE_ENV=test ./node_modules/.bin/jest --config ./test/jest-e2e.json --colors"
+    networks:
+      - webnet
+    depends_on:
+      - redis
+      - postgres
+
+  redis:
+    container_name: redis
+    image: redis:latest
+    networks:
+      - webnet
+    command: ["redis-server", "--loglevel", "warning"]
+
+  postgres:
+    container_name: postgres
+    image: postgres:latest
+    networks:
+      - webnet
+    attach: false
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PG_DATA: /var/lib/postgresql/data
+
+networks:
+  webnet:

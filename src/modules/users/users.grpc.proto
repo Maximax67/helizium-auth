@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package users;
+
+service UserGrpcService {
+  rpc SignUp (SignUpMsg) returns (UserIdMsg);
+  rpc BanUser (UserIdMsg) returns (Empty);
+  rpc UnbanUser (UserIdMsg) returns (Empty);
+  rpc DeleteUser (UserIdMsg) returns (Empty);
+}
+
+message Empty {}
+
+message SignUpMsg {
+  string username = 1;
+  string email = 2;
+}
+
+message UserIdMsg {
+  string userId = 1;
+}
