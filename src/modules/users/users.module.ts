@@ -1,4 +1,3 @@
-import * as path from 'path';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ClientsModule, Transport } from '@nestjs/microservices';
@@ -25,7 +24,7 @@ import { TracerProviderModule } from '../tracer';
         transport: Transport.GRPC,
         options: {
           package: PACKAGE_NAME,
-          protoPath: path.join(__dirname, './users.grpc.proto'),
+          protoPath: './src/modules/users/users.grpc.proto',
           url: config.grpcServerUrl,
         },
       },

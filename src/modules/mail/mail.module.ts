@@ -1,4 +1,3 @@
-import * as path from 'path';
 import * as nodemailer from 'nodemailer';
 import * as hbs from 'nodemailer-express-handlebars';
 import { Module } from '@nestjs/common';
@@ -28,10 +27,10 @@ import { TracerProviderModule } from '../tracer';
             'compile',
             hbs({
               viewEngine: {
-                partialsDir: path.resolve(__dirname, './mails'),
+                partialsDir: './src/modules/mail/mails',
                 defaultLayout: false,
               },
-              viewPath: path.resolve(__dirname, './mails'),
+              viewPath: './src/modules/mail/mails',
             }),
           );
       },
