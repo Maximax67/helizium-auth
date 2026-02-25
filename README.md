@@ -32,8 +32,7 @@ docker compose up -d --build
 ![Env configs](./screenshots/lab0/env_configuration.jpg)
 
 ### Автоматичне керування схемою БД
-...
-
+Налаштовано міграції бази даних. Приклад застосування автоматичної міграції до щойно створеної бд:
 ![Migrations](./screenshots/lab0/migrations.jpg)
 
 ## 2. Підтвердження Health Check
@@ -49,5 +48,8 @@ docker compose up -d --build
 ![Logs example](./screenshots/lab0/json_logs.jpg)
 
 ## 4. Підтвердження Shutdown
+Скріншот коду обробки відповідного сигналу:
+![Sigterm code](./screenshots/lab0/sigterm.jpg)
+
 Приклад логів після надсилання відповідного сигналу:
-![Sigterm signal](./screenshots/lab0/sigterm.jpg)
+![Sigterm logs](./screenshots/lab0/sigterm_handling.jpg)
