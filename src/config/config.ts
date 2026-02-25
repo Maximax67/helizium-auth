@@ -7,8 +7,14 @@ import { validateSync } from 'class-validator';
 import { plainToClass } from 'class-transformer';
 import { NodeEnvTypes } from '../common/enums';
 
+const isCli = process.argv.some((arg) => arg.includes('migration'));
+
 const readKeyFile = (fileName: string): string => {
-  return fs.readFileSync(path.join(__dirname, '../../keys', fileName), 'utf8');
+  if (isCli) return ''; // skip reading keys
+  return fs.readFileSync(
+    path.join(__dirname, '../../../keys', fileName),
+    'utf8',
+  );
 };
 
 dotenvConfig();

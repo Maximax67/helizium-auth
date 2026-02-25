@@ -1,6 +1,7 @@
 import { APP_PIPE } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Module, ValidationPipe } from '@nestjs/common';
+import { LoggerModule } from 'pino-nestjs';
 
 import { TokensModule } from './modules/tokens';
 import { AuthModule } from './modules/auth';
@@ -17,6 +18,7 @@ import { TracerModule } from './modules/tracer';
     AuthModule,
     TokensModule,
     MfaModule,
+    LoggerModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [

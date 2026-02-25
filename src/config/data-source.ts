@@ -1,15 +1,15 @@
+import { DataSource } from 'typeorm';
 import * as path from 'path';
-import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-import { NodeEnvTypes } from '../common/enums';
 import { config } from './config';
+import { NodeEnvTypes } from '../common/enums';
 
 const nodeEnv = config.nodeEnv;
 
-export const databaseConfig: TypeOrmModuleOptions = {
+export const AppDataSource = new DataSource({
   type: 'postgres',
   url: config.databaseUrl,
-  entities: [path.resolve(__dirname, '../**/*.entity.{t,j}s')],
+  entities: [path.resolve(__dirname, '../**/*.entity.{ts,js}')],
   migrations: [path.resolve(__dirname, '../migrations/*.{ts,js}')],
   logging: nodeEnv === NodeEnvTypes.DEVELOPMENT,
   synchronize: false,
-};
+});
