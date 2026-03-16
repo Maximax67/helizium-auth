@@ -15,6 +15,10 @@ export const TRACER_NAME = config.title;
 @Module({})
 export class TracerModule {
   static initialize() {
+    if (!config.otlpCollectorUrl) {
+      return;
+    }
+
     const otlpExporter = new OTLPTraceExporter({
       url: config.otlpCollectorUrl,
     });
