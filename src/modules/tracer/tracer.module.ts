@@ -3,10 +3,10 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
-import { FastifyInstrumentation } from '@opentelemetry/instrumentation-fastify';
 import { NestInstrumentation } from '@opentelemetry/instrumentation-nestjs-core';
 import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
-import { Resource } from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
+import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { config } from '../../config';
 
 export const TRACER_NAME = config.title;
@@ -20,13 +20,12 @@ export class TracerModule {
     });
 
     const sdk = new NodeSDK({
-      resource: new Resource({
-        'service.name': TRACER_NAME,
+      resource: resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: TRACER_NAME,
       }),
       spanProcessor: new SimpleSpanProcessor(otlpExporter) as any,
       instrumentations: [
         new HttpInstrumentation(),
-        new FastifyInstrumentation(),
         new NestInstrumentation(),
         new PgInstrumentation(),
       ],

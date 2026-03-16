@@ -1,5 +1,5 @@
 import * as nodemailer from 'nodemailer';
-import * as hbs from 'nodemailer-express-handlebars';
+import hbs from 'nodemailer-express-handlebars';
 import { Module } from '@nestjs/common';
 import { MailService } from './mail.service';
 import { config } from '../../config';

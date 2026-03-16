@@ -1,5 +1,4 @@
 import * as otpGenerator from 'otp-generator';
-import { compile } from 'path-to-regexp';
 import { Injectable } from '@nestjs/common';
 
 import { MailService } from '../mail';
@@ -18,19 +17,24 @@ export class EmailOtpService {
   };
 
   private readonly otpLength = 6;
-  private toConfirmLink = compile(config.email.confirmEmailFrontendUrl);
 
   constructor(
     private readonly mailService: MailService,
     private readonly redisService: RedisService,
-  ) {}
+  ) { }
+
+  private buildConfirmLink(userId: string, otp: string): string {
+    return config.email.confirmEmailFrontendUrl
+      .replace(':userId', userId)
+      .replace(':otp', otp);
+  }
 
   private generateOtp(): string {
     return otpGenerator.generate(this.otpLength, this.otpGeneratorOptions);
   }
 
   private getOtpStorageKey(userId: string, otp: string): string {
-    return `eotp:${userId}:${otp}`; // eotp = email otp
+    return `eotp:${userId}:${otp}`;
   }
 
   async sendOtp(
@@ -43,11 +47,7 @@ export class EmailOtpService {
   ): Promise<string> {
     const otp = this.generateOtp();
     const storageKey = this.getOtpStorageKey(userId, otp);
-
-    const url = this.toConfirmLink({
-      userId,
-      otp,
-    });
+    const url = this.buildConfirmLink(userId, otp);
 
     await this.redisService.set(storageKey, token, ttl);
 
