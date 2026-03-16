@@ -13,10 +13,14 @@ services:
     networks:
       - helizium-network
     ports:
-      - "3500:3500"
+      - "${APP_PORT:-3500}:${APP_PORT:-3500}"
+    environment:
+      - PORT=${APP_PORT:-3500}
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
-      - postgres
+      - db
 
   redis:
     container_name: redis
@@ -25,8 +29,8 @@ services:
     networks:
       - helizium-network
 
-  postgres:
-    container_name: postgres
+  db:
+    container_name: db
     image: postgres:latest
     attach: false
     networks:
@@ -39,4 +43,4 @@ services:
 
 networks:
   helizium-network:
-    external: true
+    external: ${NETWORK_EXTERNAL:-false}
