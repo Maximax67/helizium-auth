@@ -12,4 +12,11 @@ USER node
 COPY --chown=node:node package*.json ./
 RUN npm install
 
-EXPOSE 3500
+COPY --chown=node:node . .
+
+ARG APP_PORT=3500
+ENV APP_PORT=${APP_PORT}
+
+EXPOSE ${APP_PORT}
+
+CMD ["npm", "run", "start:dev"]

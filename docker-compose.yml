@@ -1,22 +1,23 @@
 services:
-  auth-service:
-    container_name: auth-service
+  app:
+    container_name: app
     build:
       context: .
       target: app
       dockerfile: Dockerfile
-    volumes:
-      - .:/usr/src/app
-      - /usr/src/app/node_modules
-    working_dir: /usr/src/app
-    command: "npm run start:dev"
+    command: "npx nest start"
     networks:
       - helizium-network
     ports:
-      - "3500:3500"
+      - "${APP_PORT:-3500}:${APP_PORT:-3500}"
+    environment:
+      - PORT=${APP_PORT:-3500}
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=ci
     depends_on:
       - redis
-      - postgres
+      - db
 
   redis:
     container_name: redis
@@ -25,8 +26,8 @@ services:
     networks:
       - helizium-network
 
-  postgres:
-    container_name: postgres
+  db:
+    container_name: db
     image: postgres:latest
     attach: false
     networks:
@@ -39,4 +40,4 @@ services:
 
 networks:
   helizium-network:
-    external: true
+    external: ${NETWORK_EXTERNAL:-false}

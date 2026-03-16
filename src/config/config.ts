@@ -7,14 +7,54 @@ import { validateSync } from 'class-validator';
 import { plainToClass } from 'class-transformer';
 import { NodeEnvTypes } from '../common/enums';
 
-const isCli = process.argv.some((arg) => arg.includes('migration'));
-
 const readKeyFile = (fileName: string): string => {
-  if (isCli) return ''; // skip reading keys
   return fs.readFileSync(
     path.join(__dirname, '../../../keys', fileName),
     'utf8',
   );
+};
+
+const createLazyKeys = () => {
+  const cache: Record<string, string | null> = {};
+
+  return {
+    get jwtAccessPrivateKey() {
+      if (!cache.jwtAccessPrivateKey) {
+        cache.jwtAccessPrivateKey = readKeyFile('rsa-access.key');
+      }
+      return cache.jwtAccessPrivateKey;
+    },
+    get jwtAccessPublicKey() {
+      if (!cache.jwtAccessPublicKey) {
+        cache.jwtAccessPublicKey = readKeyFile('rsa-access.key.pub');
+      }
+      return cache.jwtAccessPublicKey;
+    },
+    get jwtRefreshPrivateKey() {
+      if (!cache.jwtRefreshPrivateKey) {
+        cache.jwtRefreshPrivateKey = readKeyFile('rsa-refresh.key');
+      }
+      return cache.jwtRefreshPrivateKey;
+    },
+    get jwtRefreshPublicKey() {
+      if (!cache.jwtRefreshPublicKey) {
+        cache.jwtRefreshPublicKey = readKeyFile('rsa-refresh.key.pub');
+      }
+      return cache.jwtRefreshPublicKey;
+    },
+    get jwtApiPrivateKey() {
+      if (!cache.jwtApiPrivateKey) {
+        cache.jwtApiPrivateKey = readKeyFile('rsa-api.key');
+      }
+      return cache.jwtApiPrivateKey;
+    },
+    get jwtApiPublicKey() {
+      if (!cache.jwtApiPublicKey) {
+        cache.jwtApiPublicKey = readKeyFile('rsa-api.key.pub');
+      }
+      return cache.jwtApiPublicKey;
+    },
+  };
 };
 
 dotenvConfig();
@@ -25,7 +65,7 @@ if (nodeEnv === NodeEnvTypes.DEVELOPMENT || nodeEnv === NodeEnvTypes.TEST) {
   dotenvConfig({ path: envFilePath, override: true });
 }
 
-const appConfig: AppConfig = {
+const appConfig: Omit<AppConfig, 'keys'> = {
   nodeEnv,
   title: process.env.npm_package_name || 'Authorization API',
   version: process.env.npm_package_version || '1.0.0',
@@ -75,23 +115,20 @@ const appConfig: AppConfig = {
       10,
     ),
   },
-  keys: {
-    jwtAccessPrivateKey: readKeyFile('rsa-access.key'),
-    jwtAccessPublicKey: readKeyFile('rsa-access.key.pub'),
-    jwtRefreshPrivateKey: readKeyFile('rsa-refresh.key'),
-    jwtRefreshPublicKey: readKeyFile('rsa-refresh.key.pub'),
-    jwtApiPrivateKey: readKeyFile('rsa-api.key'),
-    jwtApiPublicKey: readKeyFile('rsa-api.key.pub'),
-  },
 };
 
 const validatedConfig = plainToClass(AppConfig, appConfig);
-const errors = validateSync(validatedConfig, {
-  skipMissingProperties: false,
-});
 
-if (errors.length) {
-  throw new Error(`Configuration validation failed: ${errors}`);
+if (nodeEnv === 'production') {
+  const errors = validateSync(validatedConfig, {
+    skipMissingProperties: false,
+  });
+
+  if (errors.length) {
+    throw new Error(`Configuration validation failed: ${errors}`);
+  }
 }
 
-export { validatedConfig as config };
+export const config: AppConfig = Object.assign(validatedConfig, {
+  keys: createLazyKeys(),
+});
