@@ -65,7 +65,7 @@ if (nodeEnv === NodeEnvTypes.DEVELOPMENT || nodeEnv === NodeEnvTypes.TEST) {
   dotenvConfig({ path: envFilePath, override: true });
 }
 
-const appConfig: AppConfig = {
+const appConfig: Omit<AppConfig, 'keys'> = {
   nodeEnv,
   title: process.env.npm_package_name || 'Authorization API',
   version: process.env.npm_package_version || '1.0.0',
@@ -115,16 +115,20 @@ const appConfig: AppConfig = {
       10,
     ),
   },
-  keys: createLazyKeys(),
 };
 
 const validatedConfig = plainToClass(AppConfig, appConfig);
-const errors = validateSync(validatedConfig, {
-  skipMissingProperties: false,
-});
 
-if (errors.length) {
-  throw new Error(`Configuration validation failed: ${errors}`);
+if (nodeEnv === 'production') {
+  const errors = validateSync(validatedConfig, {
+    skipMissingProperties: false,
+  });
+
+  if (errors.length) {
+    throw new Error(`Configuration validation failed: ${errors}`);
+  }
 }
 
-export { validatedConfig as config };
+export const config: AppConfig = Object.assign(validatedConfig, {
+  keys: createLazyKeys(),
+});

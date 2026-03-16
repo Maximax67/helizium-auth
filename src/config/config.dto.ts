@@ -89,30 +89,13 @@ class SecurityConfig {
   apiTokensJtiCacheTtl: number;
 }
 
-class KeysConfig {
-  @IsString()
-  @IsNotEmpty()
-  jwtAccessPrivateKey: string;
-
-  @IsString()
-  @IsNotEmpty()
-  jwtAccessPublicKey: string;
-
-  @IsString()
-  @IsNotEmpty()
-  jwtRefreshPrivateKey: string;
-
-  @IsString()
-  @IsNotEmpty()
-  jwtRefreshPublicKey: string;
-
-  @IsString()
-  @IsNotEmpty()
-  jwtApiPrivateKey: string;
-
-  @IsString()
-  @IsNotEmpty()
-  jwtApiPublicKey: string;
+interface KeysConfig {
+  readonly jwtAccessPrivateKey: string;
+  readonly jwtAccessPublicKey: string;
+  readonly jwtRefreshPrivateKey: string;
+  readonly jwtRefreshPublicKey: string;
+  readonly jwtApiPrivateKey: string;
+  readonly jwtApiPublicKey: string;
 }
 
 export class AppConfig {

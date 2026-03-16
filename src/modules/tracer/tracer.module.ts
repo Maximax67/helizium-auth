@@ -23,7 +23,7 @@ export class TracerModule {
       resource: new Resource({
         'service.name': TRACER_NAME,
       }),
-      spanProcessor: new SimpleSpanProcessor(otlpExporter),
+      spanProcessor: new SimpleSpanProcessor(otlpExporter) as any,
       instrumentations: [
         new HttpInstrumentation(),
         new FastifyInstrumentation(),

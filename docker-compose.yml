@@ -1,14 +1,10 @@
 services:
-  auth-service:
-    container_name: auth-service
+  app:
+    container_name: app
     build:
       context: .
       target: app
       dockerfile: Dockerfile
-    volumes:
-      - .:/usr/src/app
-      - /usr/src/app/node_modules
-    working_dir: /usr/src/app
     command: "npm run start:dev"
     networks:
       - helizium-network
