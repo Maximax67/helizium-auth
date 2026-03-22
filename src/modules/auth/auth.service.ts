@@ -1,4 +1,3 @@
-import { compile } from 'path-to-regexp';
 import { Injectable } from '@nestjs/common';
 import { FastifyRequest, FastifyReply } from 'fastify';
 
@@ -29,9 +28,11 @@ export class AuthService {
     private readonly mailService: MailService,
   ) {}
 
-  private readonly toResetPasswordLink = compile(
-    config.email.resetPasswordEmailFrontendUrl,
-  );
+  private toResetPasswordLink(params: { userId: string; token: string }): string {
+    return config.email.resetPasswordEmailFrontendUrl
+      .replace(':userId', params.userId)
+      .replace(':token', params.token);
+  }
 
   async returnJwks(): Promise<{ keys: Jwk[] }> {
     const jwks = await getJwks();
