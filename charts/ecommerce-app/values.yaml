@@ -1,0 +1,54 @@
+replicaCount: 2
+
+image:
+  repository: ecommerce-app
+  tag: local
+  pullPolicy: IfNotPresent
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+app:
+  port: "3500"
+  nodeEnv: ci
+  redisUrl: redis://redis:6379
+  grpcServerUrl: "0.0.0.0:50051"
+  apiGatewayTokenRevokeUrl: http://localhost:9000/add
+  otlpCollectorUrl: http://localhost:4317
+  emailHost: smtp.gmail.com
+  emailPort: "587"
+  emailFrom: account@gmail.com
+  emailUser: account@gmail.com
+  confirmEmailFrontendUrl: https://helizium.com/email/confirm/:userId/:otp
+  resetPasswordFrontendUrl: https://example.com/reset-password/:userId/:token
+  bcryptSaltRounds: "10"
+  totpSecretSize: "20"
+  apiTokensLimitPerUser: "5"
+  jwtAccessTtl: "900"
+  jwtRefreshTtl: "604800"
+  totpInitTtl: "900"
+  emailConfirmCodeTtl: "43200"
+  emailMfaCodeTtl: "1800"
+  emailResetPasswordLinkTtl: "21600"
+  emailTimeToVerifyCookie: "300"
+  apiTokensJtiCacheTtl: "3600"
+
+secret:
+  databaseUrl: postgres://postgres:postgres@postgres:5432/postgres
+  emailPassword: password
+
+postgres:
+  image: postgres:latest
+  config:
+    db: postgres
+    user: postgres
+  secret:
+    password: postgres
+
+redis:
+  image: redis:latest

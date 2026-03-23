@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  labels:
+    {{- include "ecommerce-app.labels" . | nindent 4 }}
+data:
+  PORT: {{ .Values.app.port | quote }}
+  NODE_ENV: {{ .Values.app.nodeEnv | quote }}
+  REDIS_URL: {{ .Values.app.redisUrl | quote }}
+  GRPC_SERVER_URL: {{ .Values.app.grpcServerUrl | quote }}
+  API_GATEWAY_TOKEN_REVOKE_URL: {{ .Values.app.apiGatewayTokenRevokeUrl | quote }}
+  OTLP_COLLECTOR_URL: {{ .Values.app.otlpCollectorUrl | quote }}
+  EMAIL_HOST: {{ .Values.app.emailHost | quote }}
+  EMAIL_PORT: {{ .Values.app.emailPort | quote }}
+  EMAIL_FROM: {{ .Values.app.emailFrom | quote }}
+  EMAIL_USER: {{ .Values.app.emailUser | quote }}
+  CONFIRM_EMAIL_FRONTEND_URL: {{ .Values.app.confirmEmailFrontendUrl | quote }}
+  RESET_PASSWORD_FRONTEND_URL: {{ .Values.app.resetPasswordFrontendUrl | quote }}
+  BCRYPT_SALT_ROUNDS: {{ .Values.app.bcryptSaltRounds | quote }}
+  TOTP_SECRET_SIZE: {{ .Values.app.totpSecretSize | quote }}
+  API_TOKENS_LIMIT_PER_USER: {{ .Values.app.apiTokensLimitPerUser | quote }}
+  JWT_ACCESS_TTL: {{ .Values.app.jwtAccessTtl | quote }}
+  JWT_REFRESH_TTL: {{ .Values.app.jwtRefreshTtl | quote }}
+  TOTP_INIT_TTL: {{ .Values.app.totpInitTtl | quote }}
+  EMAIL_CONFIRMATION_CODE_TTL: {{ .Values.app.emailConfirmCodeTtl | quote }}
+  EMAIL_MFA_CODE_TTL: {{ .Values.app.emailMfaCodeTtl | quote }}
+  EMAIL_RESET_PASSWORD_LINK_TTL: {{ .Values.app.emailResetPasswordLinkTtl | quote }}
+  EMAIL_TIME_TO_VERIFY_COOKIE: {{ .Values.app.emailTimeToVerifyCookie | quote }}
+  API_TOKENS_JTI_CACHE_TTL: {{ .Values.app.apiTokensJtiCacheTtl | quote }}
