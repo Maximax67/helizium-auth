@@ -5,30 +5,38 @@ services:
       context: .
       target: app
       dockerfile: Dockerfile
-    volumes:
-      - .:/usr/src/app
-      - /usr/src/app/node_modules
-    working_dir: /usr/src/app
-    command: "npx cross-env NODE_ENV=test ./node_modules/.bin/jest --config ./test/jest-e2e.json --colors"
+    command: "npx nest start"
+    env_file: .env
     networks:
-      - webnet
+      - helizium-network
+    ports:
+      - "${APP_PORT:-3500}:${APP_PORT:-3500}"
+    environment:
+      - PORT=${APP_PORT:-3500}
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=ci
+      - GRPC_SERVER_URL=main-service:50051
+      - OTLP_COLLECTOR_URL=http://jaeger:4317
     depends_on:
       - redis
-      - postgres
+      - db
 
   redis:
     container_name: redis
     image: redis:latest
-    networks:
-      - webnet
     command: ["redis-server", "--loglevel", "warning"]
-
-  postgres:
-    container_name: postgres
-    image: postgres:latest
     networks:
-      - webnet
+      - helizium-network
+
+  db:
+    container_name: db
+    image: postgres:latest
     attach: false
+    networks:
+      - helizium-network
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
@@ -36,4 +44,5 @@ services:
       PG_DATA: /var/lib/postgresql/data
 
 networks:
-  webnet:
+  helizium-network:
+    external: ${NETWORK_EXTERNAL:-false}
