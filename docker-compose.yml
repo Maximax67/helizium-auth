@@ -1,6 +1,6 @@
 services:
-  app:
-    container_name: app
+  auth-service:
+    container_name: auth-service
     build:
       context: .
       target: app
