@@ -31,7 +31,7 @@ import { Errors } from '../../common/constants';
 
 @Controller({ path: 'auth', version: VERSION_NEUTRAL })
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Get('/jwks')
   @Serialize(JwksDto)
@@ -120,7 +120,11 @@ export class AuthController {
 
   @Post('/change-password')
   @UseGuards(AuthorizedGuard, ForbidApiTokensGuard)
-  @AllowedLimits([TokenLimits.ROOT, TokenLimits.BANNED_ROOT])
+  @AllowedLimits([
+    TokenLimits.DEFAULT,
+    TokenLimits.ROOT,
+    TokenLimits.BANNED_ROOT,
+  ])
   async changePassword(
     @CurrentToken() token: TokenInfo,
     @Body() changePassword: ChangePasswordDto,
