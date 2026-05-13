@@ -11,7 +11,7 @@ fi
 
 # 2. Перевірка Health Check (200)
 echo "Step 1: Checking /health (Expect 200)..."
-STATUS=$(curl -s -o /dev/null -w "%{http_code}" localhost:7777/health)
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" localhost:8080/health)
 if [ "$STATUS" -ne 200 ]; then
   echo "❌ Error: Expected 200, but got $STATUS"
   exit 1
@@ -30,7 +30,7 @@ echo "Step 3: Stopping DB to check 503 error..."
 DB_CONTAINER=$(docker compose ps -q db)
 docker stop $DB_CONTAINER > /dev/null
 sleep 3
-STATUS_503=$(curl -s -o /dev/null -w "%{http_code}" localhost:7777/health)
+STATUS_503=$(curl -s -o /dev/null -w "%{http_code}" localhost:8080/health)
 if [ "$STATUS_503" -ne 503 ]; then
   echo "❌ Error: App must return 503 when DB is offline."
   docker start $DB_CONTAINER
