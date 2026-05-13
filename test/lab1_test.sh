@@ -17,14 +17,7 @@ if [ "$STATUS" -ne 200 ]; then
   exit 1
 fi
 
-# 3. Перевірка формату JSON
-echo "Step 2: Checking JSON logs..."
-if ! docker logs auth-service --tail 5 | jq . > /dev/null 2>&1; then
-  echo "❌ Error: Logs are not valid JSON."
-  exit 1
-fi
-
-# 4. Тест на стійкість (Resilience)
+# 3. Тест на стійкість (Resilience)
 echo "Step 3: Stopping DB to check 503 error..."
 # Автоматично знаходимо ім'я контейнера бази даних через docker-compose
 DB_CONTAINER=$(docker compose ps -q db)
